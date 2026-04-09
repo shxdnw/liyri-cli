@@ -7,6 +7,7 @@ MPRIS_PREFIX = "org.mpris.MediaPlayer2."
 MPRIS_PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
 DBUS_PROPS_IFACE = "org.freedesktop.DBus.Properties"
 
+ENABLE_STICKY_PLAYER = True
 _last_playing_bus = None
 
 
@@ -134,7 +135,7 @@ def get_now_playing(player_name=None):
             }
 
     # Fallback: prioritize the previously remembered playing bus to avoid jumping
-    if _last_playing_bus:
+    if ENABLE_STICKY_PLAYER and _last_playing_bus:
         for bus_name, friendly_name in players:
             if bus_name == _last_playing_bus:
                 try:

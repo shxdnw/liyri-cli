@@ -1,58 +1,20 @@
 # ♫ Liyri-cli
 
-**Liyri-cli** is a high-performance, minimal Linux CLI application that displays synchronized lyrics for currently playing media. It uses MPRIS D-Bus to detect your player (Spotify, VLC, browser, etc.) and fetches lyrics from the LRCLIB API.
+**Liyri-cli** is a high-performance, minimal Linux CLI application that displays synchronized lyrics for currently playing media. It uses MPRIS D-Bus to instantly detect your player (Spotify, VLC, Chromium, etc.) and fetches lyrics from the LRCLIB API.
 
-![Liyri Preview](https://github.com/user-attachments/assets/placeholder)
+##  Quick Install
 
-## ✨ Features
-
-- **Focus Mode**: Large, centered block-letter ASCII animation showing one word at a time.
-- **Scroll Mode**: Classic full-lyrics view with smooth scrolling.
-- **Silky Smooth Sync**: High-precision position interpolation (60fps) for perfectly timed lyrics without D-Bus lag.
-- **Multi-Language Support**: Renders Cyrillic, CJK (Chinese, Japanese, Korean), and other non-Latin characters gracefully.
-- **Minimal Mode**: Toggle UI elements with `m` to focus only on the lyrics.
-- **Automatic Song Detection**: Real-time monitoring of song changes, pauses, and skips.
-- **Lyrics Caching**: In-memory cache for instantaneous loading of previously fetched songs.
-
-## 🚀 Installation
-
-### Prerequisites
-
-- Python 3.8+
-- A Linux system with a running MPRIS-compatible media player (Spotify, VLC, MPD, Chrome, etc.)
-- System dependencies (usually pre-installed on most distros):
-  ```bash
-  # Arch Linux
-  sudo pacman -S python-dbus
-  
-  # Ubuntu/Debian
-  sudo apt install python3-dbus
-  ```
-
-### Quick Install (Standalone)
-
-Clone the repo and run the install script:
+Install it globally so you can use it from anywhere:
 
 ```bash
 git clone https://github.com/shxdnw/liyri-cli.git
 cd liyri-cli
 sudo ./install.sh
 ```
-This will symlink the liyri command to `/usr/local/bin/liyri`.
 
-### Manual Install (Virtual Environment)
+##  Usage
 
-```bash
-git clone https://github.com/shxdnw/liyri-cli.git
-cd liyri-cli
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
-## 🎮 Usage
-
-Run `liyri` to start the focus mode:
+Simply run the app to instantly show lyrics for whatever is playing:
 
 ```bash
 liyri
@@ -62,20 +24,41 @@ liyri
 
 | Flag | Description |
 |------|-------------|
-| `--minimal` | Start in minimal mode (just the big words) |
-| `--scroll` | Use full lyrics scroll mode |
-| `-p PLAYER` | Target a specific player (e.g., `-p spotify`) |
-| `--list-players`| Show all detected media players |
+| `--scroll` | Use full lyrics scroll mode instead of default big-word mode |
+| `--minimal` | Hide window borders and player info to just focus on text |
+| `-p PLAYER` | Target a specific player natively (e.g., `-p spotify`) |
+| `-s SPEED` | Set animation speed multiplier (default: `1.0`) |
+| `--no-sync` | Force fetch plain lyrics ignoring synchronized timelines |
+| `--list-players`| Show all currently detected media players |
 
-### Hotkeys
+**Hotkeys:** 
+- Press `m` to toggle minimal mode on the fly.
+- Press `q` to quit.
 
-- `m`: Toggle minimal mode
-- `q` or `Esc`: Quit
+##  Configuration
 
-## ⚙️ Configuration
+Liyri-cli supports advanced behavior toggles via a standard JSON configuration file located at `~/.config/liyri/config.json`. 
 
-Liyri-cli is designed to be zero-config. It automatically picks the best available synchronized lyrics and handles player detection out of the box.
+The app automatically generates this file with its defaults the first time you run it:
+
+```json
+{
+    "mode": "focus",
+    "minimal": false,
+    "player": "",
+    "speed": 1.0,
+    "no_sync": false,
+    "strip_keywords": true,
+    "sticky_player": true
+}
+```
+
+### Configuration Toggles
+- **`mode`**: Choose between `"focus"` (default big-word mode) or `"scroll"` (full block-view mode).
+- **`minimal`**: Hide window info and start cleanly (`true`/`false`).
+- **`player`**: Restrict the lyrics engine to always track a specific player (e.g., `"spotify"`).
+- **`strip_keywords`**: `true` automatically filters clutter tags like "(slowed)" or "nightcore" out of titles to help find correct lyrics when searches fail.
+- **`sticky_player`**: `true` cleanly remembers the exact player you were listening to when you pause a track, rather than automatically jumping tracking logic to a nearby paused player. 
 
 ## 📄 License
-
 MIT

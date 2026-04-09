@@ -7,6 +7,8 @@ LRCLIB_BASE = "https://lrclib.net/api"
 USER_AGENT = "liyri-cli/1.0.0 (https://github.com/shxdnw/liyri-cli)"
 TIMEOUT = 5
 
+ENABLE_KEYWORD_STRIPPING = True
+
 # Simple in-memory cache to avoid redundant API calls
 _LYRICS_CACHE = {}
 
@@ -50,11 +52,12 @@ def _fetch_lyrics_internal(title, artist, album=None, duration_s=None):
 
     # Try stripping common modifiers like "slowed", "sped up", "nightcore", etc.
     # We do a case-insensitive regex removing a trailing dash or words.
-    keyword_strip = re.sub(r"(?i)[-\s]*(slowed|sped up|nightcore|reverb|superslowed).*$", "", clean_title).strip()
-    if keyword_strip and keyword_strip != clean_title:
-        result = _try_search(keyword_strip, artist)
-        if result:
-            return result
+    if ENABLE_KEYWORD_STRIPPING:
+        keyword_strip = re.sub(r"(?i)[-\s]*(slowed|sped up|nightcore|reverb|superslowed).*$", "", clean_title).strip()
+        if keyword_strip and keyword_strip != clean_title:
+            result = _try_search(keyword_strip, artist)
+            if result:
+                return result
 
     return None
 

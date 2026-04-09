@@ -8,6 +8,7 @@ from liyri import __version__
 from liyri import player as mpris
 from liyri import lyrics as lyrics_api
 from liyri import display
+from liyri import config
 
 
 def _list_players():
@@ -204,12 +205,24 @@ def main():
 
     args = parser.parse_args()
 
+    cfg = config.load_config()
+
     if args.list_players:
         _list_players()
         sys.exit(0)
 
-    # Set mode
-    args.mode = "scroll" if args.scroll else "focus"
+    # Inject global toggles into underlying modules
+    mpris.ENABLE_STICKY_PLAYER = cfg.get("sticky_player", True)
+    lyrics_api.ENABLE_KEYWORD_STRIPPING = cfg.get("strip_keywords", True)
+
+    # Set logic based on config mappings and overrides
+    args.player = args.player if args.player else cfg.get("player", "")
+    args.speed = args.speed if args.speed != 1.0 else cfg.get("speed", 1.0)
+    args.no_sync = args.no_sync or cfg.get("no_sync", False)
+    args.minimal = args.minimal or cfg.get("minimal", False)
+    
+    config_mode = cfg.get("mode", "focus")
+    args.mode = "scroll" if (args.scroll or config_mode == "scroll") else "focus"
 
     try:
         curses.wrapper(lambda stdscr: _run_app(stdscr, args))
