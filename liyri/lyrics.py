@@ -4,7 +4,7 @@ import re
 import requests
 
 LRCLIB_BASE = "https://lrclib.net/api"
-USER_AGENT = "liyri-cli/1.0.0 (https://github.com/shxdnw/liyri-cli)"
+USER_AGENT = "liyri-cli/1.0.1 (https://github.com/shxdnw/liyri-cli)"
 TIMEOUT = 5
 
 ENABLE_KEYWORD_STRIPPING = True

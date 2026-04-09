@@ -60,5 +60,5 @@ The app automatically generates this file with its defaults the first time you r
 - **`strip_keywords`**: `true` automatically filters clutter tags like "(slowed)" or "nightcore" out of titles to help find correct lyrics when searches fail.
 - **`sticky_player`**: `true` cleanly remembers the exact player you were listening to when you pause a track, rather than automatically jumping tracking logic to a nearby paused player. 
 
-## 📄 License
+##  License
 MIT
