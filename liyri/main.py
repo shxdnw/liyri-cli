@@ -1,5 +1,3 @@
-"""Liyri CLI entry point — wire everything together."""
-
 import argparse
 import curses
 import sys
@@ -12,7 +10,6 @@ from liyri import config
 
 
 def _list_players():
-    """Print all detected MPRIS players."""
     players = mpris.get_active_players()
     if not players:
         print("  No MPRIS media players detected.")
@@ -31,7 +28,6 @@ def _list_players():
 
 
 def _fetch_for_track(track):
-    """Fetch lyrics for a track. Returns lyrics result or None."""
     title = track["title"]
     artist = track["artist"]
     album = track["album"]
@@ -40,30 +36,25 @@ def _fetch_for_track(track):
 
 
 def _run_app(stdscr, args):
-    """Main app loop inside curses — handles song changes automatically."""
-
-    mode = args.mode  # "focus", "scroll"
+    mode = args.mode
     player_filter = args.player
     speed = args.speed
     no_sync = args.no_sync
     minimal = args.minimal
 
     while True:
-        # ── Wait for a playing track ──
         track = mpris.get_now_playing(player_filter)
         if not track:
             track = display.run_waiting(stdscr, player_filter)
             if track is None:
-                return  # user quit
+                return
 
         title = track["title"]
         artist = track["artist"]
 
-        # ── Fetch lyrics ──
         display.show_fetching(stdscr, title, artist)
         result = _fetch_for_track(track)
 
-        # ── Choose display function ──
         use_synced = result and result["synced_lyrics"] and not no_sync
         has_plain = result and result["plain_lyrics"]
 
@@ -75,7 +66,6 @@ def _run_app(stdscr, args):
                 ret = display.run_focus_plain(stdscr, result["plain_lyrics"],
                                               track, speed=speed, minimal=minimal)
             else:
-                # No lyrics — run focus waiting with just the song info
                 ret = _run_no_lyrics(stdscr, track)
         elif mode == "scroll":
             if use_synced:
@@ -88,23 +78,21 @@ def _run_app(stdscr, args):
         else:
             ret = "quit"
 
-        # ── Handle return value ──
         if ret == "quit":
             return
         elif ret == "song_changed":
-            continue  # re-detect and re-fetch
+            continue
         elif ret == "player_closed":
-            continue  # go back to waiting
+            continue
         elif ret == "stopped":
-            continue  # go back to waiting
+            continue
         elif ret == "finished":
-            continue  # song ended, check for next
+            continue
         else:
             return
 
 
 def _run_no_lyrics(stdscr, track_info):
-    """Show a 'no lyrics found' state while monitoring for song changes."""
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(100)
@@ -129,7 +117,6 @@ def _run_no_lyrics(stdscr, track_info):
 
         now = time.monotonic()
 
-        # Check player
         try:
             status = mpris.get_playback_status(bus_name)
             pos_us = mpris.get_position_us(bus_name)
@@ -141,14 +128,12 @@ def _run_no_lyrics(stdscr, track_info):
 
         pos_s = pos_us / 1_000_000
 
-        # Song change check
         if now - last_check > 1.5:
             last_check = now
             new_track = display._check_song_changed(bus_name, title)
             if new_track:
                 return "song_changed"
 
-        # Draw
         stdscr.erase()
         h, w = stdscr.getmaxyx()
 
@@ -211,11 +196,9 @@ def main():
         _list_players()
         sys.exit(0)
 
-    # Inject global toggles into underlying modules
     mpris.ENABLE_STICKY_PLAYER = cfg.get("sticky_player", True)
     lyrics_api.ENABLE_KEYWORD_STRIPPING = cfg.get("strip_keywords", True)
 
-    # Set logic based on config mappings and overrides
     args.player = args.player if args.player else cfg.get("player", "")
     args.speed = args.speed if args.speed != 1.0 else cfg.get("speed", 1.0)
     args.no_sync = args.no_sync or cfg.get("no_sync", False)
@@ -228,7 +211,6 @@ def main():
         curses.wrapper(lambda stdscr: _run_app(stdscr, args))
     except KeyboardInterrupt:
         pass
-
 
 if __name__ == "__main__":
     main()

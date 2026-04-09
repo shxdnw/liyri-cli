@@ -1,5 +1,3 @@
-"""Lyrics fetching from LRCLIB API."""
-
 import re
 import requests
 
@@ -9,18 +7,12 @@ TIMEOUT = 5
 
 ENABLE_KEYWORD_STRIPPING = True
 
-# Simple in-memory cache to avoid redundant API calls
 _LYRICS_CACHE = {}
-
 
 def _headers():
     return {"User-Agent": USER_AGENT}
 
-
 def fetch_lyrics(title, artist, album=None, duration_s=None):
-    """
-    Fetch lyrics for a track from LRCLIB with caching.
-    """
     cache_key = (artist.lower(), title.lower())
     if cache_key in _LYRICS_CACHE:
         return _LYRICS_CACHE[cache_key]
@@ -32,9 +24,7 @@ def fetch_lyrics(title, artist, album=None, duration_s=None):
         
     return result
 
-
 def _fetch_lyrics_internal(title, artist, album=None, duration_s=None):
-    """Internal logic to fetch lyrics from LRCLIB."""
     result = _try_exact_match(title, artist, album, duration_s)
     if result:
         return result
@@ -43,15 +33,12 @@ def _fetch_lyrics_internal(title, artist, album=None, duration_s=None):
     if result:
         return result
 
-    # Try with simplified title (remove parenthetical info)
     clean_title = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip()
     if clean_title != title:
         result = _try_search(clean_title, artist)
         if result:
             return result
 
-    # Try stripping common modifiers like "slowed", "sped up", "nightcore", etc.
-    # We do a case-insensitive regex removing a trailing dash or words.
     if ENABLE_KEYWORD_STRIPPING:
         keyword_strip = re.sub(r"(?i)[-\s]*(slowed|sped up|nightcore|reverb|superslowed).*$", "", clean_title).strip()
         if keyword_strip and keyword_strip != clean_title:
@@ -61,9 +48,7 @@ def _fetch_lyrics_internal(title, artist, album=None, duration_s=None):
 
     return None
 
-
 def _try_exact_match(title, artist, album=None, duration_s=None):
-    """Try LRCLIB exact GET endpoint."""
     params = {
         "track_name": title,
         "artist_name": artist,
@@ -87,9 +72,7 @@ def _try_exact_match(title, artist, album=None, duration_s=None):
         pass
     return None
 
-
 def _try_search(title, artist):
-    """Try LRCLIB search endpoint."""
     query = f"{artist} {title}"
     try:
         resp = requests.get(
@@ -101,7 +84,6 @@ def _try_search(title, artist):
         if resp.status_code == 200:
             results = resp.json()
             if results and isinstance(results, list) and len(results) > 0:
-                # Pick the best match — prefer one with synced lyrics
                 best = None
                 for r in results:
                     if r.get("syncedLyrics"):
@@ -114,9 +96,7 @@ def _try_search(title, artist):
         pass
     return None
 
-
 def _parse_response(data):
-    """Parse a single LRCLIB response object into our format."""
     synced_raw = data.get("syncedLyrics", "")
     plain_raw = data.get("plainLyrics", "")
 
@@ -139,14 +119,7 @@ def _parse_response(data):
         "artist_name": data.get("artistName", ""),
     }
 
-
 def parse_synced_lyrics(lrc_string):
-    """
-    Parse LRC-format synced lyrics.
-
-    Input:  '[01:23.45] Some lyric line'
-    Output: [(83.45, 'Some lyric line'), ...]
-    """
     pattern = re.compile(r"\[(\d{2}):(\d{2})\.(\d{2,3})\]\s*(.*)")
     lines = []
     for raw_line in lrc_string.split("\n"):
