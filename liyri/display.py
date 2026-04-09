@@ -489,9 +489,19 @@ def run_focus(stdscr, synced_lyrics, track_info, minimal=False):
                 wi = int((el / ld) * len(words)) if ld > 0 else 0
                 wi = max(0, min(wi, len(words)-1))
                 current_word, current_word_idx = words[wi], wi
+            else:
+                current_word = "♫"
+                full_line_text = " "
+        else:
+            current_word = "♫"
+            full_line_text = " "
 
         display_word = current_word or last_word
-        display_line = full_line_text if full_line_text.strip() else last_line_text
+        if current_word == "♫":
+            display_line = ""
+        else:
+            display_line = full_line_text if full_line_text.strip() else last_line_text
+
         if current_word:
             last_word, last_line_text, last_word_idx = current_word, full_line_text, current_word_idx
 
