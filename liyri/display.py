@@ -104,6 +104,44 @@ _BLOCK_FONT = {
     ';': [" ▀ ", "   ", " ▄ "],
     '(': [" █ ", "█  ", " █ "],
     ')': ["█  ", " █ ", "█  "],
+    # Cyrillic
+    'А': ["█▀█", "█▀█", "▀ ▀"], 'Б': ["█▀▀", "█▀█", "▀▀▀"],
+    'В': ["█▀▄", "█▀▄", "▀▀ "], 'Г': ["█▀▀", "█  ", "▀  "],
+    'Д': [" █▀", " █ ", "▀▀▀"], 'Е': ["█▀▀", "█▀▀", "▀▀▀"],
+    'Ё': ["█▀▀", "█▀▀", "▀▀▀"], 'Ж': ["█▄█", " █ ", "█ █"],
+    'З': ["▀▀█", " ▀█", "▀▀▀"], 'И': ["█ █", "█▀█", "█ █"],
+    'Й': ["█▄█", "█▀█", "█ █"], 'К': ["█ █", "█▀▄", "▀ ▀"],
+    'Л': ["█▀█", "█ █", "▀ ▀"], 'М': ["█▄█", "█ █", "▀ ▀"],
+    'Н': ["█ █", "█▀█", "█ █"], 'О': ["█▀█", "█ █", "▀▀▀"],
+    'П': ["█▀█", "█ █", "▀ ▀"], 'Р': ["█▀█", "█▀ ", "▀  "],
+    'С': ["█▀▀", "█  ", "▀▀▀"], 'Т': ["▀█▀", " █ ", " ▀ "],
+    'У': ["█ █", " ▀█", "▀▀ "], 'Ф': ["█▀█", "█╋█", " █ "],
+    'Х': ["█ █", " █ ", "█ █"], 'Ц': ["█ █", "█ █", "▀▀▄"],
+    'Ч': ["█ █", "▀▀█", "  ▀"], 'Ш': ["█ █", "█ █", "▀▀▀"],
+    'Щ': ["█ █", "█ █", "▀▀█"], 'Ъ': ["█  ", "█▀█", "▀▀▀"],
+    'Ы': ["█ █", "█▀█", "▀▀▀"], 'Ь': ["█  ", "█▀ ", "▀▀▀"],
+    'Э': ["▀▀█", " █▀", "▀▀█"], 'Ю': ["█▀█", "█▀█", "▀ ▀"],
+    'Я': ["█▀█", "█▀█", "▀ ▀"],
+    # Greek
+    'Α': ["█▀█", "█▀█", "▀ ▀"], 'Β': ["█▀▄", "█▀▄", "▀▀ "],
+    'Γ': ["█▀▀", "█  ", "▀  "], 'Δ': [" █ ", "█▀█", "▀▀▀"],
+    'Ε': ["█▀▀", "█▀▀", "▀▀▀"], 'Ζ': ["▀▀█", " █ ", "█▀▀"],
+    'Η': ["█ █", "█▀█", "▀ ▀"], 'Θ': ["█▀█", "█ █", "▀▀▀"],
+    'Ι': ["▀█▀", " █ ", "▀█▀"], 'Κ': ["█ █", "█▀▄", "▀ ▀"],
+    'Λ': [" █ ", "█ █", "▀ ▀"], 'Μ': ["█▄█", "█ █", "▀ ▀"],
+    'Ν': ["█▀█", "█ █", "▀ ▀"], 'Ξ': ["▀▀▀", " █ ", "▀▀▀"],
+    'Ο': ["█▀█", "█ █", "▀▀▀"], 'Π': ["█▀█", "█ █", "▀ ▀"],
+    'Ρ': ["█▀█", "█▀ ", "▀  "], 'Σ': ["█▀▀", " ▀█", "▀▀▀"],
+    'Τ': ["▀█▀", " █ ", " ▀ "], 'Υ': ["█ █", " █ ", " ▀ "],
+    'Φ': ["█▀█", "█╋█", " █ "], 'Χ': ["█ █", " █ ", "█ █"],
+    'Ψ': ["█ █", "▀█▀", " █ "], 'Ω': ["█▀█", "█ █", "▀ ▀"],
+    # Accented Latin & Special
+    'Á': [" █ ", "█▀█", "▀ ▀"], 'É': [" █ ", "█▀▀", "▀▀▀"],
+    'Í': [" █ ", " █ ", " ▀ "], 'Ó': [" █ ", "█▀█", "▀▀▀"],
+    'Ú': [" █ ", "█ █", "▀▀▀"], 'Ñ': ["█▀█", "█ █", "▀ ▀"],
+    'Ü': ["█ █", "█ █", "▀▀▀"], 'Ö': ["█ █", "█▀█", "▀▀▀"],
+    'Ä': ["█ █", "█▀█", "▀ ▀"], 'Ç': ["█▀▀", "█  ", "▀▀▄"],
+    'İ': [" ▄ ", " █ ", " ▀ "],
 }
 
 _BLOCK_CHAR_W = 3
@@ -118,18 +156,23 @@ def _char_display_width(ch):
 
 
 def _get_glyph(ch):
-    """Get the 3-row glyph for a character. Falls back to displaying the char itself."""
+    """Get the 3-row glyph for a character. Falls back to a better block-frame."""
     ch_upper = ch.upper()
     if ch_upper in _BLOCK_FONT:
         return _BLOCK_FONT[ch_upper], _BLOCK_CHAR_W
-    # Fallback: render the character itself, padded to look centered in 3 rows
+    
+    # Fallback for complex scripts (Chinese, Arabic, Korean, etc.)
     cw = _char_display_width(ch_upper)
-    pad = max(0, 3 - cw)
-    left = pad // 2
-    right = pad - left
-    char_line = " " * left + ch_upper + " " * right
-    blank = " " * (cw + pad)
-    return [blank, char_line, blank], cw + pad
+    
+    # Clean box-less fallback centering the actual character
+    top = "   "
+    bot = "   "
+    if cw == 2:
+        mid = f" {ch_upper}"
+        return [top, mid, bot], 3
+    else:
+        mid = f" {ch_upper} "
+        return [top, mid, bot], 3
 
 
 def _render_block_word(word):
@@ -348,7 +391,7 @@ class PlayerTracker:
         self.last_pos = 0.0
         self.last_status = "Stopped"
         self.last_update = time.monotonic()
-        self.poll_interval = 0.5
+        self.poll_interval = 0.2
         self.last_poll = 0.0
 
     def sync(self, force=False):
@@ -357,9 +400,20 @@ class PlayerTracker:
         if force or (now - self.last_poll > self.poll_interval):
             info = mpris.get_player_info(self.bus_name)
             if info:
-                self.last_status, pos_us, _ = info
-                self.last_pos = pos_us / 1_000_000
-                self.last_update = now
+                new_status, pos_us, _ = info
+                actual_pos = pos_us / 1_000_000
+                
+                if force or new_status != "Playing" or self.last_status != "Playing":
+                    self.last_pos = actual_pos
+                    self.last_update = now
+                else:
+                    # Seek detection heuristic
+                    expected_pos = self.last_pos + (now - self.last_update)
+                    if abs(actual_pos - expected_pos) > 1.0:
+                        self.last_pos = actual_pos
+                        self.last_update = now
+                
+                self.last_status = new_status
                 self.last_poll = now
             return True
         return False
@@ -838,9 +892,9 @@ def show_fetching(stdscr, title, artist):
         curses.curs_set(0)
         stdscr.erase()
         h, w = stdscr.getmaxyx()
-        msg = f"fetching lyrics for {artist} — {title}..."
-        _safe_addstr(stdscr, h // 2, _center_x(stdscr, msg), msg,
-                     curses.color_pair(CP_DIM))
+        icon = "♫"
+        _safe_addstr(stdscr, h // 2, _center_x(stdscr, icon), icon,
+                     curses.color_pair(CP_ACCENT) | curses.A_BOLD)
         stdscr.refresh()
     except curses.error:
         pass

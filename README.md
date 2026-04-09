@@ -1,6 +1,6 @@
-# ♫ Liyri
+# ♫ Liyri-cli
 
-**Liyri** is a high-performance, minimal Linux CLI application that displays synchronized lyrics for currently playing media. It uses MPRIS D-Bus to detect your player (Spotify, VLC, browser, etc.) and fetches lyrics from the LRCLIB API.
+**Liyri-cli** is a high-performance, minimal Linux CLI application that displays synchronized lyrics for currently playing media. It uses MPRIS D-Bus to detect your player (Spotify, VLC, browser, etc.) and fetches lyrics from the LRCLIB API.
 
 ![Liyri Preview](https://github.com/user-attachments/assets/placeholder)
 
@@ -34,8 +34,8 @@
 Clone the repo and run the install script:
 
 ```bash
-git clone https://github.com/yourusername/liyri.git
-cd liyri
+git clone https://github.com/shxdnw/liyri-cli.git
+cd liyri-cli
 sudo ./install.sh
 ```
 This will symlink the liyri command to `/usr/local/bin/liyri`.
@@ -43,8 +43,8 @@ This will symlink the liyri command to `/usr/local/bin/liyri`.
 ### Manual Install (Virtual Environment)
 
 ```bash
-git clone https://github.com/yourusername/liyri.git
-cd liyri
+git clone https://github.com/shxdnw/liyri-cli.git
+cd liyri-cli
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
@@ -74,7 +74,7 @@ liyri
 
 ## ⚙️ Configuration
 
-Liyri is designed to be zero-config. It automatically picks the best available synchronized lyrics and handles player detection out of the box.
+Liyri-cli is designed to be zero-config. It automatically picks the best available synchronized lyrics and handles player detection out of the box.
 
 ## 📄 License
 

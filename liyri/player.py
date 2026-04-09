@@ -7,6 +7,8 @@ MPRIS_PREFIX = "org.mpris.MediaPlayer2."
 MPRIS_PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
 DBUS_PROPS_IFACE = "org.freedesktop.DBus.Properties"
 
+_last_playing_bus = None
+
 
 def _get_session_bus():
     """Return the session D-Bus."""
@@ -78,6 +80,7 @@ def get_now_playing(player_name=None):
         dict with keys: bus_name, player, title, artist, album, duration_us
         or None if nothing is playing.
     """
+    global _last_playing_bus
     players = get_active_players()
     if not players:
         return None
@@ -119,6 +122,7 @@ def get_now_playing(player_name=None):
 
         # Prefer playing players, but return paused ones as fallback
         if status == "Playing":
+            _last_playing_bus = bus_name
             return {
                 "bus_name": bus_name,
                 "player": friendly_name,
@@ -128,6 +132,35 @@ def get_now_playing(player_name=None):
                 "duration_us": duration_us,
                 "status": status,
             }
+
+    # Fallback: prioritize the previously remembered playing bus to avoid jumping
+    if _last_playing_bus:
+        for bus_name, friendly_name in players:
+            if bus_name == _last_playing_bus:
+                try:
+                    props = _get_player_properties(bus_name)
+                    metadata = props.Get(MPRIS_PLAYER_IFACE, "Metadata")
+                    title = str(metadata.get("xesam:title", ""))
+                    if title:
+                        artists = metadata.get("xesam:artist", [])
+                        artist = str(artists[0]) if artists else ""
+                        album = str(metadata.get("xesam:album", ""))
+                        duration_us = int(metadata.get("mpris:length", 0))
+                        try:
+                            status = get_playback_status(bus_name)
+                        except dbus.exceptions.DBusException:
+                            status = "Unknown"
+                        return {
+                            "bus_name": bus_name,
+                            "player": friendly_name,
+                            "title": title,
+                            "artist": artist,
+                            "album": album,
+                            "duration_us": duration_us,
+                            "status": status,
+                        }
+                except dbus.exceptions.DBusException:
+                    pass
 
     # Fallback: return the first player with a title (even if paused)
     for bus_name, friendly_name in players:
