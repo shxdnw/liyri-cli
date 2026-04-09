@@ -10,9 +10,6 @@
 **Focus mode**
 <img width="1915" height="1078" alt="Focus Mode Preview" src="https://github.com/user-attachments/assets/d1e30076-9b86-458d-af73-942aa7ccff4f" />
 
-**Minimal mode**
-<img width="408" height="249" alt="Minimal Mode Preview" src="https://github.com/user-attachments/assets/95678022-0608-47eb-94c7-4a895ebd3152" />
-
 **Scrolling mode**
 <img width="1918" height="1077" alt="Scrolling Mode Preview" src="https://github.com/user-attachments/assets/66b18470-f853-4067-a449-1002858f969e" />
 
