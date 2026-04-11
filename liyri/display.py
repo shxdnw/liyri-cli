@@ -2,6 +2,7 @@
 
 import curses
 import time
+import unicodedata
 
 from liyri import player as mpris
 
@@ -142,6 +143,11 @@ _BLOCK_FONT = {
     'Ü': ["█ █", "█ █", "▀▀▀"], 'Ö': ["█ █", "█▀█", "▀▀▀"],
     'Ä': ["█ █", "█▀█", "▀ ▀"], 'Ç': ["█▀▀", "█  ", "▀▀▄"],
     'İ': [" ▄ ", " █ ", " ▀ "],
+    # Vietnamese & Special
+    'Đ': ["█▀▄", "█╋█", "▀▀ "],
+    'ß': ["█▀▄", "█▀▄", "█▀ "],
+    'Æ': ["█▀▀", "█▀▀", "▀▀▀"], # Rough approximation
+    'Œ': ["█▀█", "█▀█", "▀▀▀"], # Rough approximation
 }
 
 _BLOCK_CHAR_W = 3
@@ -150,16 +156,84 @@ _BLOCK_GAP = 1
 
 def _char_display_width(ch):
     """Get terminal display width of a character (CJK = 2, others = 1)."""
-    import unicodedata
     cat = unicodedata.east_asian_width(ch)
     return 2 if cat in ('F', 'W') else 1
 
 
+# ──────────────────────────────────────────────
+#  Composition System
+# ──────────────────────────────────────────────
+
+_DIACRITIC_TOP = {
+    '\u0300': "▀  ", # Grave
+    '\u0301': "  ▀", # Acute
+    '\u0302': " ▀ ", # Circumflex
+    '\u0303': "▀▀▀", # Tilde
+    '\u0304': "▀▀▀", # Macron
+    '\u0306': "█▄█", # Breve
+    '\u0307': " ▀ ", # Dot Above
+    '\u0308': "▀ ▀", # Diaeresis/Umlaut
+    '\u0309': " ▀█", # Hook Above (Vietnamese)
+    '\u030A': " ▀ ", # Ring Above
+    '\u030B': "▀ ▀", # Double Acute
+    '\u030C': "▀ ▀", # Caron/Hacek
+    '\u031B': "  ▀", # Horn (Vietnamese ơ, ư)
+}
+
+_DIACRITIC_BOT = {
+    '\u0323': " ▄ ", # Dot Below
+    '\u0327': "  ▄", # Cedilla
+    '\u0328': "  ▄", # Ogonek
+}
+
+def _merge_row(row1, row2):
+    """Merge two block-pattern rows (logical OR)."""
+    res = list(row1)
+    for i, c in enumerate(row2):
+        if c != ' ' and i < len(res):
+            res[i] = c
+    return "".join(res)
+
+def _compose_glyph(ch):
+    """Try to dynamically build a 4-row glyph for an accented character."""
+    ch_upper = ch.upper()
+    norm = unicodedata.normalize('NFD', ch_upper)
+    base = norm[0]
+    diacritics = norm[1:]
+
+    if base not in _BLOCK_FONT:
+        return None
+
+    base_glyph = _BLOCK_FONT[base]
+    # 4-row system: Row 0 is for accents, Rows 1-3 are the base body.
+    rows = ["   ", base_glyph[0], base_glyph[1], base_glyph[2]]
+    
+    accent_added = False
+    for d in diacritics:
+        if d in _DIACRITIC_TOP:
+            rows[0] = _merge_row(rows[0], _DIACRITIC_TOP[d])
+            accent_added = True
+        elif d in _DIACRITIC_BOT:
+            rows[3] = _merge_row(rows[3], _DIACRITIC_BOT[d])
+            accent_added = True
+
+    if not accent_added:
+        return None # Fall back to wrapped _BLOCK_FONT search in _get_glyph
+
+    return rows, _BLOCK_CHAR_W
+
+
 def _get_glyph(ch):
-    """Get the 3-row glyph for a character. Falls back to a better block-frame."""
+    """Get the 4-row glyph for a character. Falls back to a better block-frame."""
+    composed = _compose_glyph(ch)
+    if composed:
+        return composed
+    
     ch_upper = ch.upper()
     if ch_upper in _BLOCK_FONT:
-        return _BLOCK_FONT[ch_upper], _BLOCK_CHAR_W
+        bg = _BLOCK_FONT[ch_upper]
+        # Always wrap in 4 rows for consistency
+        return ["   ", bg[0], bg[1], bg[2]], _BLOCK_CHAR_W
     
     # Fallback for complex scripts (Chinese, Arabic, Korean, etc.)
     cw = _char_display_width(ch_upper)
@@ -167,22 +241,23 @@ def _get_glyph(ch):
     # Clean box-less fallback centering the actual character
     top = "   "
     bot = "   "
+    mid_padding = " "
     if cw == 2:
-        mid = f" {ch_upper}"
-        return [top, mid, bot], 3
+        mid_row = f" {ch_upper}"
+        return [top, "   ", mid_row, bot], 3
     else:
-        mid = f" {ch_upper} "
-        return [top, mid, bot], 3
+        mid_row = f" {ch_upper} "
+        return [top, "   ", mid_row, bot], 3
 
 
 def _render_block_word(word):
-    """Render a word as 3-row block text. Handles any Unicode character."""
+    """Render a word as 4-row block text. Handles any Unicode character."""
     word = word.upper()
-    rows = ["", "", ""]
+    rows = ["", "", "", ""]
     for i, ch in enumerate(word):
         glyph, gw = _get_glyph(ch)
         gap = " " * _BLOCK_GAP if i > 0 else ""
-        for r in range(3):
+        for r in range(4):
             rows[r] += gap + glyph[r]
     return rows
 
@@ -360,11 +435,12 @@ def _draw_big_word(stdscr, word, cy):
         return 1
     else:
         x = max(0, (w - block_w) // 2)
-        start_y = cy - 1
+        # 4-row system: start 2 rows above the requested center to keep the "body" centered
+        start_y = cy - 2
         for r, row in enumerate(block_rows):
             _safe_addstr(stdscr, start_y + r, x, row,
                          curses.color_pair(CP_BIG_WORD) | curses.A_BOLD)
-        return 3
+        return 4
 
 
 def _draw_pause_overlay(stdscr, word, line_text):
