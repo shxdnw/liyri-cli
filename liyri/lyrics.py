@@ -4,7 +4,7 @@ from thefuzz import fuzz
 
 LRCLIB_BASE = "https://lrclib.net/api"
 NETEASE_BASE = "http://music.163.com/api"
-USER_AGENT = "liyri-cli/1.0.1 (https://github.com/shxdnw/liyri-cli)"
+USER_AGENT = "liyri-cli/1.1.0 (https://github.com/shxdnw/liyri-cli)"
 TIMEOUT = 5
 
 ENABLE_KEYWORD_STRIPPING = True
