@@ -7,10 +7,6 @@ import unicodedata
 from liyri import player as mpris
 
 
-# ──────────────────────────────────────────────
-#  Colour & style setup
-# ──────────────────────────────────────────────
-
 CP_HEADER    = 1
 CP_CURRENT   = 2
 CP_NEAR      = 3
@@ -52,10 +48,6 @@ def _init_colors():
         curses.init_pair(CP_BIG_WORD,     curses.COLOR_WHITE,   -1)
         curses.init_pair(CP_PAUSE,        curses.COLOR_YELLOW,  -1)
 
-
-# ──────────────────────────────────────────────
-#  Block-letter font (3 rows tall)
-# ──────────────────────────────────────────────
 
 _BLOCK_FONT = {
     'A': ["█▀█", "█▀█", "▀ ▀"],
@@ -159,10 +151,6 @@ def _char_display_width(ch):
     cat = unicodedata.east_asian_width(ch)
     return 2 if cat in ('F', 'W') else 1
 
-
-# ──────────────────────────────────────────────
-#  Composition System
-# ──────────────────────────────────────────────
 
 _DIACRITIC_TOP = {
     '\u0300': "▀  ", # Grave
@@ -275,10 +263,6 @@ def _block_word_width(word):
         total += gw
     return total
 
-
-# ──────────────────────────────────────────────
-#  Drawing helpers
-# ──────────────────────────────────────────────
 
 def _safe_addstr(win, y, x, text, attr=0):
     """Write text to curses window, safely clipping."""
@@ -414,8 +398,10 @@ def _check_song_changed(bus_name, current_title):
     return False
 
 
-def _draw_big_word(stdscr, word, cy):
+def _draw_big_word(stdscr, word, cy, attr=None):
     """Draw a big block-letter word centered at row cy. Returns rows used."""
+    if attr is None:
+        attr = curses.color_pair(CP_BIG_WORD) | curses.A_BOLD
     try:
         h, w = stdscr.getmaxyx()
     except curses.error:
@@ -428,18 +414,14 @@ def _draw_big_word(stdscr, word, cy):
     block_w = _block_word_width(word)
 
     if block_w > w - 4:
-        # Fallback: regular big text
         x = max(0, (w - len(word)) // 2)
-        _safe_addstr(stdscr, cy, x, word.upper(),
-                     curses.color_pair(CP_BIG_WORD) | curses.A_BOLD)
+        _safe_addstr(stdscr, cy, x, word.upper(), attr)
         return 1
     else:
         x = max(0, (w - block_w) // 2)
-        # 4-row system: start 2 rows above the requested center to keep the "body" centered
         start_y = cy - 2
         for r, row in enumerate(block_rows):
-            _safe_addstr(stdscr, start_y + r, x, row,
-                         curses.color_pair(CP_BIG_WORD) | curses.A_BOLD)
+            _safe_addstr(stdscr, start_y + r, x, row, attr)
         return 4
 
 
@@ -501,7 +483,7 @@ class PlayerTracker:
         return self.last_pos + (time.monotonic() - self.last_update)
 
 
-def run_focus(stdscr, synced_lyrics, track_info, minimal=False):
+def run_focus(stdscr, synced_lyrics, track_info, has_karaoke=False, minimal=False):
     """Display one word at a time with interpolation sync."""
     curses.curs_set(0)
     stdscr.nodelay(True)
@@ -521,6 +503,7 @@ def run_focus(stdscr, synced_lyrics, track_info, minimal=False):
     last_word, last_line_text = "", ""
     last_word_idx, last_line_idx = -1, -1
     last_ui_check = time.monotonic()
+    tracker.sync()
     force_redraw = True
 
     while True:
@@ -551,44 +534,39 @@ def run_focus(stdscr, synced_lyrics, track_info, minimal=False):
         # Find current line/word from interpolated position
         current_line_idx = -1
         for i in range(len(lines) - 1, -1, -1):
-            if pos_s >= lines[i][0]:
+            if pos_s >= lines[i]["time"]:
                 current_line_idx = i
                 break
 
         current_word, current_word_idx, full_line_text = "", -1, ""
+        current_word_full = ""
+        current_word_shown = ""
+
         if current_line_idx >= 0:
-            full_line_text = lines[current_line_idx][1]
-            words = full_line_text.split() if full_line_text.strip() else []
-            if words:
-                ld = lines[current_line_idx+1][0] - lines[current_line_idx][0] if current_line_idx < len(lines)-1 else 5.0
+            line_data = lines[current_line_idx]
+            full_line_text = line_data["text"]
+            syllables = line_data["syllables"]
+            
+            if syllables:
+                # Find current syllable
+                si = 0
+                for j in range(len(syllables)-1, -1, -1):
+                    if pos_s >= syllables[j]["time"]:
+                        si = j
+                        break
                 
-                # Detect instrumental gap: if next line is far away, don't stretch words.
-                # Words should take at most ~0.8s each, or 5s total for the line.
-                active_duration = min(ld, max(5.0, len(words) * 0.8))
-                el = pos_s - lines[current_line_idx][0]
-                
-                if el > active_duration and ld > active_duration + 2.0:
-                    # Instrumental gap reached
-                    current_word, current_word_idx = "♫", -1
-                else:
-                    wi = int((el / active_duration) * len(words)) if active_duration > 0 else 0
-                    wi = max(0, min(wi, len(words)-1))
-                    current_word, current_word_idx = words[wi], wi
+                current_word_full = syllables[si]["text"]
+                current_word_idx = si
+                current_word_shown = current_word_full
             else:
-                current_word = "♫"
+                current_word_shown = "♫"
                 full_line_text = " "
         else:
-            current_word = "♫"
+            current_word_shown = "♫"
             full_line_text = " "
 
-        display_word = current_word or last_word
-        if current_word == "♫":
-            display_line = full_line_text # Keep showing it but it will be dimmed
-        else:
-            display_line = full_line_text if full_line_text.strip() else last_line_text
-
-        if current_word:
-            last_word, last_line_text, last_word_idx = current_word, full_line_text, current_word_idx
+        display_word = current_word_shown
+        display_line = full_line_text if full_line_text.strip() else last_line_text
 
         # Draw decision
         if force_redraw or current_word_idx != last_word_idx or current_line_idx != last_line_idx or (now % 0.1 < 0.02):
@@ -599,29 +577,40 @@ def run_focus(stdscr, synced_lyrics, track_info, minimal=False):
                 if h < 5 or w < 10: continue
 
                 if minimal:
-                    if display_word: _draw_big_word(stdscr, display_word, h // 2)
+                    if display_word: 
+                        _draw_big_word(stdscr, display_word, h // 2, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
                     if paused: _draw_pause_overlay(stdscr, display_word, display_line)
                 else:
                     icon = "⏸" if paused else "♫"
-                    info = f"{icon} {title}  ─  {artist}  [{player_name}]"
+                    k_star = "*" if has_karaoke else ""
+                    info = f"{icon} {title}  ─  {artist}  [{player_name}{k_star}]"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
                     _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
                     
                     if display_word:
-                        _draw_big_word(stdscr, display_word, h//2 - 1)
+                        _draw_big_word(stdscr, display_word, h//2 - 1, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
                         if display_line.strip():
                             cy = h//2 + 2
                             cx = _center_x(stdscr, display_line)
                             _safe_addstr(stdscr, cy, cx, display_line, curses.color_pair(CP_DIM))
-                            words = display_line.split()
-                            wi = current_word_idx if current_word_idx >= 0 else last_word_idx
-                            if 0 <= wi < len(words):
-                                before = " ".join(words[:wi])
-                                hx = cx + len(before) + (1 if before else 0)
-                                _safe_addstr(stdscr, cy, hx, words[wi], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
+                            
+                            # Highlight current word in the line below
+                            if current_line_idx >= 0 and lines[current_line_idx]["syllables"]:
+                                syllables = lines[current_line_idx]["syllables"]
+                                current_si = current_word_idx
+                                if 0 <= current_si < len(syllables):
+                                    # Find start position of this word in display_line
+                                    # Note: this is a simple approximation
+                                    combined_words = [s["text"] for s in syllables]
+                                    before = " ".join(combined_words[:current_si])
+                                    hx = cx + len(before) + (1 if before else 0)
+                                    word_text = syllables[current_si]["text"]
+                                    _safe_addstr(stdscr, cy, hx, word_text, curses.color_pair(CP_CURRENT)|curses.A_BOLD)
                     
                     if h > 6: _draw_progress_bar(stdscr, h-2, pos_s, duration_s, paused)
-                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal"), "q quit  m minimal", curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if h > 4:
+                        legend = "q quit  m minimal"
+                        _safe_addstr(stdscr, h-1, _center_x(stdscr, legend), legend, curses.color_pair(CP_DIM)|curses.A_DIM)
                 
                 stdscr.refresh()
             except curses.error: pass
@@ -726,7 +715,7 @@ def run_focus_plain(stdscr, plain_lines, track_info, speed=1.0, minimal=False):
 #  SCROLL MODE — synced lyrics scroll view
 # ──────────────────────────────────────────────
 
-def run_synced(stdscr, synced_lyrics, track_info):
+def run_synced(stdscr, synced_lyrics, track_info, has_karaoke=False):
     """Display synced lyrics scrolling with silky interpolation."""
     curses.curs_set(0)
     stdscr.nodelay(True)
@@ -765,20 +754,24 @@ def run_synced(stdscr, synced_lyrics, track_info):
         # Find current line
         current_idx = -1
         for i in range(len(lines) - 1, -1, -1):
-            if pos_s >= lines[i][0]:
+            if pos_s >= lines[i]["time"]:
                 current_idx = i
                 break
 
-        # Word reveal
+        # Word reveal logic for scroll view
         word_reveal = 0
         words = []
         if current_idx >= 0:
-            text = lines[current_idx][1]
-            words = text.split() if text else []
-            ld = lines[current_idx+1][0] - lines[current_idx][0] if current_idx < len(lines)-1 else 5.0
-            el = pos_s - lines[current_idx][0]
-            if words and ld > 0: word_reveal = min(len(words), int((el / ld) * len(words)) + 1)
-            else: word_reveal = len(words)
+            syllables = lines[current_idx]["syllables"]
+            if syllables:
+                for si, s in enumerate(syllables):
+                    if pos_s >= s["time"]:
+                        word_reveal = si + 1
+                words = [s["text"] for s in syllables]
+            else:
+                text = lines[current_idx]["text"]
+                words = text.split() if text else []
+                word_reveal = len(words)
 
         # Smooth scroll
         target = float(current_idx) if current_idx >= 0 else 0.0
@@ -790,7 +783,8 @@ def run_synced(stdscr, synced_lyrics, track_info):
             h, w = stdscr.getmaxyx()
             if h < 6 or w < 10: continue
 
-            header_h = _draw_box_header(stdscr, title, artist, player_name, paused)
+            k_star = "*" if has_karaoke else ""
+            header_h = _draw_box_header(stdscr, title, artist, f"{player_name}{k_star}", paused)
             top, bottom = header_h + 1, h - 3
             height = bottom - top
             if height < 3:

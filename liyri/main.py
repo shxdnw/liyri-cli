@@ -58,10 +58,12 @@ def _run_app(stdscr, args):
         use_synced = result and result["synced_lyrics"] and not no_sync
         has_plain = result and result["plain_lyrics"]
 
+        has_karaoke = result.get("has_karaoke", False) if result else False
+
         if mode == "focus":
             if use_synced:
                 ret = display.run_focus(stdscr, result["synced_lyrics"],
-                                        track, minimal=minimal)
+                                        track, has_karaoke=has_karaoke, minimal=minimal)
             elif has_plain:
                 ret = display.run_focus_plain(stdscr, result["plain_lyrics"],
                                               track, speed=speed, minimal=minimal)
@@ -69,7 +71,7 @@ def _run_app(stdscr, args):
                 ret = _run_no_lyrics(stdscr, track)
         elif mode == "scroll":
             if use_synced:
-                ret = display.run_synced(stdscr, result["synced_lyrics"], track)
+                ret = display.run_synced(stdscr, result["synced_lyrics"], track, has_karaoke=has_karaoke)
             elif has_plain:
                 ret = display.run_static(stdscr, result["plain_lyrics"],
                                           track, speed=speed)
