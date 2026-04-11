@@ -561,10 +561,19 @@ def run_focus(stdscr, synced_lyrics, track_info, minimal=False):
             words = full_line_text.split() if full_line_text.strip() else []
             if words:
                 ld = lines[current_line_idx+1][0] - lines[current_line_idx][0] if current_line_idx < len(lines)-1 else 5.0
+                
+                # Detect instrumental gap: if next line is far away, don't stretch words.
+                # Words should take at most ~0.8s each, or 5s total for the line.
+                active_duration = min(ld, max(5.0, len(words) * 0.8))
                 el = pos_s - lines[current_line_idx][0]
-                wi = int((el / ld) * len(words)) if ld > 0 else 0
-                wi = max(0, min(wi, len(words)-1))
-                current_word, current_word_idx = words[wi], wi
+                
+                if el > active_duration and ld > active_duration + 2.0:
+                    # Instrumental gap reached
+                    current_word, current_word_idx = "♫", -1
+                else:
+                    wi = int((el / active_duration) * len(words)) if active_duration > 0 else 0
+                    wi = max(0, min(wi, len(words)-1))
+                    current_word, current_word_idx = words[wi], wi
             else:
                 current_word = "♫"
                 full_line_text = " "
@@ -574,7 +583,7 @@ def run_focus(stdscr, synced_lyrics, track_info, minimal=False):
 
         display_word = current_word or last_word
         if current_word == "♫":
-            display_line = ""
+            display_line = full_line_text # Keep showing it but it will be dimmed
         else:
             display_line = full_line_text if full_line_text.strip() else last_line_text
 
@@ -641,7 +650,7 @@ def run_focus_plain(stdscr, plain_lines, track_info, speed=1.0, minimal=False):
             for wi, w in enumerate(words): word_list.append((w, line, wi))
 
     if not word_list: return "quit"
-    word_delay = max(0.08, (duration_s * 0.8) / len(word_list)) if duration_s > 0 else 0.25/speed
+    word_delay = max(0.08, min(2.0/speed, (duration_s * 0.8) / len(word_list))) if duration_s > 0 else 0.25/speed
 
     tracker = PlayerTracker(bus_name)
     tracker.sync(force=True)
@@ -832,7 +841,7 @@ def run_static(stdscr, plain_lines, track_info, speed=1.0):
     tracker = PlayerTracker(bus_name)
     tracker.sync(force=True)
 
-    word_delay = max(0.08, (duration_s * 0.8) / sum(len(l.split()) for l in lines)) if duration_s > 0 and lines else 0.08/speed
+    word_delay = max(0.08, min(2.0/speed, (duration_s * 0.8) / sum(len(l.split()) for l in lines))) if duration_s > 0 and lines else 0.08/speed
     current_line, word_idx = 0, 0
     last_word_time = time.monotonic()
     current_scroll = 0.0

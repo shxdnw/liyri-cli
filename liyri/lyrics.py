@@ -2,6 +2,7 @@ import re
 import requests
 
 LRCLIB_BASE = "https://lrclib.net/api"
+NETEASE_BASE = "http://music.163.com/api"
 USER_AGENT = "liyri-cli/1.0.1 (https://github.com/shxdnw/liyri-cli)"
 TIMEOUT = 5
 
@@ -45,6 +46,11 @@ def _fetch_lyrics_internal(title, artist, album=None, duration_s=None):
             result = _try_search(keyword_strip, artist)
             if result:
                 return result
+
+    # Fallback to NetEase
+    result = _fetch_netease_lyrics(title, artist)
+    if result:
+        return result
 
     return None
 
@@ -119,21 +125,101 @@ def _parse_response(data):
         "artist_name": data.get("artistName", ""),
     }
 
+def _fetch_netease_lyrics(title, artist):
+    """Fallback fetcher for NetEase Music."""
+    query = f"{artist} {title}"
+    headers = {
+        "Referer": "http://music.163.com",
+        "User-Agent": "Mozilla/5.0"
+    }
+    
+    try:
+        # 1. Search for song ID
+        resp = requests.get(
+            f"{NETEASE_BASE}/search/get",
+            params={"s": query, "type": 1, "limit": 5},
+            headers=headers,
+            timeout=TIMEOUT
+        )
+        if resp.status_code != 200: return None
+        
+        results = resp.json().get("result", {}).get("songs", [])
+        if not results: return None
+        
+        # Pick best match (look for title in result)
+        song_id = results[0]["id"]
+        track_name = results[0].get("name", title)
+        artist_name = results[0].get("artists", [{}])[0].get("name", artist)
+
+        # 2. Fetch lyrics by ID
+        lyr_resp = requests.get(
+            f"{NETEASE_BASE}/song/lyric",
+            params={"id": song_id, "lv": 1, "kv": 1, "tv": -1},
+            headers=headers,
+            timeout=TIMEOUT
+        )
+        if lyr_resp.status_code != 200: return None
+        
+        lyr_data = lyr_resp.json()
+        lrc_text = lyr_data.get("lrc", {}).get("lyric", "")
+        if not lrc_text: return None
+
+        # 3. Parse and return
+        synced = parse_synced_lyrics(lrc_text)
+        # If synced parsing failed or produced no lines, it might be plain text
+        plain = [l.strip() for l in lrc_text.split('\n') if l.strip()] if not synced else [l[1] for l in synced]
+
+        return {
+            "synced_lyrics": synced,
+            "plain_lyrics": plain,
+            "source": "netease",
+            "track_name": track_name,
+            "artist_name": artist_name
+        }
+    except Exception:
+        return None
+
 def parse_synced_lyrics(lrc_string):
-    pattern = re.compile(r"\[(\d{2}):(\d{2})\.(\d{2,3})\]\s*(.*)")
+    """
+    Robustly parse LRC strings. 
+    Handles [mm:ss], [mm:ss.xx], [mm:ss.xxx], [mm:ss.xx-x], 
+    and multiple timestamps per line.
+    """
+    # Regex for [minutes:seconds.fraction] - fraction and suffix are optional
+    tag_pattern = re.compile(r"\[(\d+):(\d{2})(?:\.(\d+))?.*?\]")
     lines = []
+    
     for raw_line in lrc_string.split("\n"):
         raw_line = raw_line.strip()
-        m = pattern.match(raw_line)
-        if m:
-            minutes = int(m.group(1))
-            seconds = int(m.group(2))
-            centis = m.group(3)
-            if len(centis) == 2:
-                frac = int(centis) / 100.0
-            else:
-                frac = int(centis) / 1000.0
-            timestamp = minutes * 60 + seconds + frac
-            text = m.group(4)
-            lines.append((timestamp, text))
-    return lines if lines else None
+        if not raw_line: continue
+        
+        # Find all timestamps in the line
+        matches = list(tag_pattern.finditer(raw_line))
+        if not matches: continue
+        
+        # The text is whatever is left after removing all tags
+        text = tag_pattern.sub("", raw_line).strip()
+        
+        for m in matches:
+            try:
+                minutes = int(m.group(1))
+                seconds = int(m.group(2))
+                frac_str = m.group(3)
+                
+                # Convert fraction (00, 000, 5) to float seconds
+                frac = 0.0
+                if frac_str:
+                    # Handle cases like .5 (500ms), .50 (500ms), .500 (500ms)
+                    frac = int(frac_str) / (10 ** len(frac_str))
+                
+                timestamp = minutes * 60 + seconds + frac
+                lines.append((timestamp, text))
+            except (ValueError, TypeError):
+                continue
+
+    if not lines:
+        return None
+        
+    # LRC lines aren't always in order if there are multiple tags per line
+    lines.sort(key=lambda x: x[0])
+    return lines
