@@ -10,11 +10,12 @@ WRAPPER="/usr/local/bin/liyri"
 echo "♫  Installing liyri..."
 
 # Check dependencies
-python3 -c "import dbus, requests" 2>/dev/null || {
+python3 -c "import dbus, requests, thefuzz" 2>/dev/null || {
     echo "Error: Missing Python dependencies."
     echo "Install them with:"
-    echo "  sudo pacman -S python-dbus python-requests   # Arch"
-    echo "  sudo apt install python3-dbus python3-requests # Debian/Ubuntu"
+    echo "  sudo pacman -S python-dbus python-requests python-thefuzz python-levenshtein   # Arch"
+    echo "  sudo apt install python3-dbus python3-requests python3-thefuzz python3-levenshtein # Debian/Ubuntu"
+    echo "  pip install dbus-python requests thefuzz python-Levenshtein                      # Generic PIP"
     exit 1
 }
 

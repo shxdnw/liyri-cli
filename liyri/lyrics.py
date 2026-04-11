@@ -1,5 +1,6 @@
 import re
 import requests
+from thefuzz import fuzz
 
 LRCLIB_BASE = "https://lrclib.net/api"
 NETEASE_BASE = "http://music.163.com/api"
@@ -78,6 +79,15 @@ def _try_exact_match(title, artist, album=None, duration_s=None):
         pass
     return None
 
+def _calculate_match_score(target_title, target_artist, result_title, result_artist):
+    """
+    Calculate a similarity score between target metadata and search result metadata.
+    Uses token_set_ratio which is robust against "Remix", "Remaster", etc.
+    """
+    target = f"{target_artist} {target_title}".lower()
+    result = f"{result_artist} {result_title}".lower()
+    return fuzz.token_set_ratio(target, result)
+
 def _try_search(title, artist):
     query = f"{artist} {title}"
     try:
@@ -90,14 +100,32 @@ def _try_search(title, artist):
         if resp.status_code == 200:
             results = resp.json()
             if results and isinstance(results, list) and len(results) > 0:
-                best = None
+                # 1. Look for exact matches first
                 for r in results:
+                    r_title = r.get("trackName", "").strip().lower()
+                    r_artist = r.get("artistName", "").strip().lower()
+                    if r_title == title.lower() and r_artist == artist.lower():
+                        if r.get("syncedLyrics"):
+                            return _parse_response(r)
+
+                # 2. Fallback to ranking results by fuzzy match score
+                scored_results = []
+                for r in results:
+                    score = _calculate_match_score(
+                        title, artist, 
+                        r.get("trackName", ""), r.get("artistName", "")
+                    )
+                    # Boost results that have synced lyrics
                     if r.get("syncedLyrics"):
-                        best = r
-                        break
-                if best is None:
-                    best = results[0]
-                return _parse_response(best)
+                        score += 5
+                    scored_results.append((score, r))
+                
+                scored_results.sort(key=lambda x: x[0], reverse=True)
+                best_score, best_result = scored_results[0]
+                
+                # Threshold for a "good enough" match
+                if best_score >= 80: # Increased threshold for safety
+                    return _parse_response(best_result)
     except (requests.RequestException, ValueError):
         pass
     return None
@@ -146,10 +174,23 @@ def _fetch_netease_lyrics(title, artist):
         results = resp.json().get("result", {}).get("songs", [])
         if not results: return None
         
-        # Pick best match (look for title in result)
-        song_id = results[0]["id"]
-        track_name = results[0].get("name", title)
-        artist_name = results[0].get("artists", [{}])[0].get("name", artist)
+        # Pick best match using fuzzy score
+        scored_results = []
+        for r in results:
+            r_title = r.get("name", "")
+            r_artist = r.get("artists", [{}])[0].get("name", "")
+            score = _calculate_match_score(title, artist, r_title, r_artist)
+            scored_results.append((score, r))
+        
+        scored_results.sort(key=lambda x: x[0], reverse=True)
+        best_score, best_song = scored_results[0]
+        
+        if best_score < 70:
+            return None
+
+        song_id = best_song["id"]
+        track_name = best_song.get("name", title)
+        artist_name = best_song.get("artists", [{}])[0].get("name", artist)
 
         # 2. Fetch lyrics by ID
         lyr_resp = requests.get(
