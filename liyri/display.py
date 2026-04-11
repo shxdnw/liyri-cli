@@ -3,6 +3,7 @@
 import curses
 import time
 import unicodedata
+import random
 
 from liyri import player as mpris
 
@@ -97,7 +98,6 @@ _BLOCK_FONT = {
     ';': [" ▀ ", "   ", " ▄ "],
     '(': [" █ ", "█  ", " █ "],
     ')': ["█  ", " █ ", "█  "],
-    # Cyrillic
     'А': ["█▀█", "█▀█", "▀ ▀"], 'Б': ["█▀▀", "█▀█", "▀▀▀"],
     'В': ["█▀▄", "█▀▄", "▀▀ "], 'Г': ["█▀▀", "█  ", "▀  "],
     'Д': [" █▀", " █ ", "▀▀▀"], 'Е': ["█▀▀", "█▀▀", "▀▀▀"],
@@ -115,7 +115,6 @@ _BLOCK_FONT = {
     'Ы': ["█ █", "█▀█", "▀▀▀"], 'Ь': ["█  ", "█▀ ", "▀▀▀"],
     'Э': ["▀▀█", " █▀", "▀▀█"], 'Ю': ["█▀█", "█▀█", "▀ ▀"],
     'Я': ["█▀█", "█▀█", "▀ ▀"],
-    # Greek
     'Α': ["█▀█", "█▀█", "▀ ▀"], 'Β': ["█▀▄", "█▀▄", "▀▀ "],
     'Γ': ["█▀▀", "█  ", "▀  "], 'Δ': [" █ ", "█▀█", "▀▀▀"],
     'Ε': ["█▀▀", "█▀▀", "▀▀▀"], 'Ζ': ["▀▀█", " █ ", "█▀▀"],
@@ -128,568 +127,337 @@ _BLOCK_FONT = {
     'Τ': ["▀█▀", " █ ", " ▀ "], 'Υ': ["█ █", " █ ", " ▀ "],
     'Φ': ["█▀█", "█╋█", " █ "], 'Χ': ["█ █", " █ ", "█ █"],
     'Ψ': ["█ █", "▀█▀", " █ "], 'Ω': ["█▀█", "█ █", "▀ ▀"],
-    # Accented Latin & Special
     'Á': [" █ ", "█▀█", "▀ ▀"], 'É': [" █ ", "█▀▀", "▀▀▀"],
     'Í': [" █ ", " █ ", " ▀ "], 'Ó': [" █ ", "█▀█", "▀▀▀"],
     'Ú': [" █ ", "█ █", "▀▀▀"], 'Ñ': ["█▀█", "█ █", "▀ ▀"],
     'Ü': ["█ █", "█ █", "▀▀▀"], 'Ö': ["█ █", "█▀█", "▀▀▀"],
     'Ä': ["█ █", "█▀█", "▀ ▀"], 'Ç': ["█▀▀", "█  ", "▀▀▄"],
     'İ': [" ▄ ", " █ ", " ▀ "],
-    # Vietnamese & Special
     'Đ': ["█▀▄", "█╋█", "▀▀ "],
     'ß': ["█▀▄", "█▀▄", "█▀ "],
-    'Æ': ["█▀▀", "█▀▀", "▀▀▀"], # Rough approximation
-    'Œ': ["█▀█", "█▀█", "▀▀▀"], # Rough approximation
+    'Æ': ["█▀▀", "█▀▀", "▀▀▀"],
+    'Œ': ["█▀█", "█▀█", "▀▀▀"],
 }
 
 _BLOCK_CHAR_W = 3
 _BLOCK_GAP = 1
 
-
 def _char_display_width(ch):
-    """Get terminal display width of a character (CJK = 2, others = 1)."""
     cat = unicodedata.east_asian_width(ch)
     return 2 if cat in ('F', 'W') else 1
 
-
 _DIACRITIC_TOP = {
-    '\u0300': "▀  ", # Grave
-    '\u0301': "  ▀", # Acute
-    '\u0302': " ▀ ", # Circumflex
-    '\u0303': "▀▀▀", # Tilde
-    '\u0304': "▀▀▀", # Macron
-    '\u0306': "█▄█", # Breve
-    '\u0307': " ▀ ", # Dot Above
-    '\u0308': "▀ ▀", # Diaeresis/Umlaut
-    '\u0309': " ▀█", # Hook Above (Vietnamese)
-    '\u030A': " ▀ ", # Ring Above
-    '\u030B': "▀ ▀", # Double Acute
-    '\u030C': "▀ ▀", # Caron/Hacek
-    '\u031B': "  ▀", # Horn (Vietnamese ơ, ư)
+    '\u0300': "▀  ", '\u0301': "  ▀", '\u0302': " ▀ ", '\u0303': "▀▀▀",
+    '\u0304': "▀▀▀", '\u0306': "█▄█", '\u0307': " ▀ ", '\u0308': "▀ ▀",
+    '\u0309': " ▀█", '\u030A': " ▀ ", '\u030B': "▀ ▀", '\u030C': "▀ ▀",
+    '\u031B': "  ▀",
 }
-
-_DIACRITIC_BOT = {
-    '\u0323': " ▄ ", # Dot Below
-    '\u0327': "  ▄", # Cedilla
-    '\u0328': "  ▄", # Ogonek
-}
+_DIACRITIC_BOT = {'\u0323': " ▄ ", '\u0327': "  ▄", '\u0328': "  ▄"}
 
 def _merge_row(row1, row2):
-    """Merge two block-pattern rows (logical OR)."""
     res = list(row1)
     for i, c in enumerate(row2):
-        if c != ' ' and i < len(res):
-            res[i] = c
+        if c != ' ' and i < len(res): res[i] = c
     return "".join(res)
 
 def _compose_glyph(ch):
-    """Try to dynamically build a 4-row glyph for an accented character."""
     ch_upper = ch.upper()
     norm = unicodedata.normalize('NFD', ch_upper)
-    base = norm[0]
-    diacritics = norm[1:]
-
-    if base not in _BLOCK_FONT:
-        return None
-
-    base_glyph = _BLOCK_FONT[base]
-    # 4-row system: Row 0 is for accents, Rows 1-3 are the base body.
-    rows = ["   ", base_glyph[0], base_glyph[1], base_glyph[2]]
-    
-    accent_added = False
+    base, diacritics = norm[0], norm[1:]
+    if base not in _BLOCK_FONT: return None
+    bg = _BLOCK_FONT[base]
+    rows = ["   ", bg[0], bg[1], bg[2]]
+    accent = False
     for d in diacritics:
-        if d in _DIACRITIC_TOP:
-            rows[0] = _merge_row(rows[0], _DIACRITIC_TOP[d])
-            accent_added = True
-        elif d in _DIACRITIC_BOT:
-            rows[3] = _merge_row(rows[3], _DIACRITIC_BOT[d])
-            accent_added = True
-
-    if not accent_added:
-        return None # Fall back to wrapped _BLOCK_FONT search in _get_glyph
-
-    return rows, _BLOCK_CHAR_W
-
+        if d in _DIACRITIC_TOP: rows[0] = _merge_row(rows[0], _DIACRITIC_TOP[d]); accent=True
+        elif d in _DIACRITIC_BOT: rows[3] = _merge_row(rows[3], _DIACRITIC_BOT[d]); accent=True
+    return (rows, _BLOCK_CHAR_W) if accent else None
 
 def _get_glyph(ch):
-    """Get the 4-row glyph for a character. Falls back to a better block-frame."""
-    composed = _compose_glyph(ch)
-    if composed:
-        return composed
-    
-    ch_upper = ch.upper()
-    if ch_upper in _BLOCK_FONT:
-        bg = _BLOCK_FONT[ch_upper]
-        # Always wrap in 4 rows for consistency
-        return ["   ", bg[0], bg[1], bg[2]], _BLOCK_CHAR_W
-    
-    # Fallback for complex scripts (Chinese, Arabic, Korean, etc.)
-    cw = _char_display_width(ch_upper)
-    
-    # Clean box-less fallback centering the actual character
-    top = "   "
-    bot = "   "
-    mid_padding = " "
-    if cw == 2:
-        mid_row = f" {ch_upper}"
-        return [top, "   ", mid_row, bot], 3
-    else:
-        mid_row = f" {ch_upper} "
-        return [top, "   ", mid_row, bot], 3
-
+    comp = _compose_glyph(ch)
+    if comp: return comp
+    cu = ch.upper()
+    if cu in _BLOCK_FONT: return (["   ", _BLOCK_FONT[cu][0], _BLOCK_FONT[cu][1], _BLOCK_FONT[cu][2]], _BLOCK_CHAR_W)
+    cw = _char_display_width(cu)
+    row = f" {cu}" if cw == 2 else f" {cu} "
+    return (["   ", "   ", row, "   "], 3)
 
 def _render_block_word(word):
-    """Render a word as 4-row block text. Handles any Unicode character."""
     word = word.upper()
     rows = ["", "", "", ""]
     for i, ch in enumerate(word):
         glyph, gw = _get_glyph(ch)
         gap = " " * _BLOCK_GAP if i > 0 else ""
-        for r in range(4):
-            rows[r] += gap + glyph[r]
+        for r in range(4): rows[r] += gap + glyph[r]
     return rows
 
-
 def _block_word_width(word):
-    """Calculate char width of a block-rendered word."""
-    word = word.upper()
-    if not word:
-        return 0
+    if not word: return 0
     total = 0
-    for i, ch in enumerate(word):
+    for i, ch in enumerate(word.upper()):
         _, gw = _get_glyph(ch)
-        if i > 0:
-            total += _BLOCK_GAP
+        if i > 0: total += _BLOCK_GAP
         total += gw
     return total
 
+class Particle:
+    def __init__(self, h, w):
+        self.y = random.uniform(0, h)
+        self.x = random.uniform(0, w)
+        self.char = random.choice(["·", "·", "·", "+", "*"])
+        self.speed = random.uniform(0.05, 0.25)
+
+class ParticleEngine:
+    def __init__(self, h, w, count=30):
+        self.h, self.w = h, w
+        self.particles = [Particle(h, w) for _ in range(count)]
+        self.enabled = True
+    def update(self, h, w):
+        self.h, self.w = h, w
+        for p in self.particles:
+            p.y += p.speed
+            if p.y >= h: p.y = 0; p.x = random.uniform(0, w)
+    def draw(self, stdscr, intensity="low"):
+        if not self.enabled: return
+        attr = curses.color_pair(CP_DIM)
+        if intensity == "low": attr |= curses.A_DIM
+        for p in self.particles: _safe_addstr(stdscr, int(p.y), int(p.x), p.char, attr)
 
 def _safe_addstr(win, y, x, text, attr=0):
-    """Write text to curses window, safely clipping."""
     try:
         h, w = win.getmaxyx()
-        if y < 0 or y >= h or x >= w or x < 0:
-            return
-        max_len = w - x - 1
-        if max_len <= 0:
-            return
-        win.addnstr(y, x, text, max_len, attr)
-    except curses.error:
-        pass  # silently handle resize/boundary errors
-
+        if y < 0 or y >= h or x >= w or x < 0: return
+        win.addnstr(y, x, text, w - x - 1, attr)
+    except: pass
 
 def _center_x(win, text):
-    """Return x to centre text horizontally."""
-    try:
-        _, w = win.getmaxyx()
-        return max(0, (w - len(text)) // 2)
-    except curses.error:
-        return 0
+    try: return max(0, (win.getmaxyx()[1] - len(text)) // 2)
+    except: return 0
 
+def _format_time(s):
+    if s < 0: s = 0
+    return f"{int(s)//60:02d}:{int(s)%60:02d}"
 
-def _format_time(seconds):
-    if seconds < 0:
-        seconds = 0
-    m = int(seconds) // 60
-    s = int(seconds) % 60
-    return f"{m:02d}:{s:02d}"
+def _draw_progress_bar(win, y, pos, dur, paused=False):
+    try: h, w = win.getmaxyx()
+    except: return
+    if y < 0 or y >= h or w < 20: return
+    bw = w - 16
+    if bw < 5: return
+    frac = max(0.0, min(1.0, pos / dur)) if dur > 0 else 0
+    filled = int(frac * bw)
+    col = CP_PAUSE if paused else CP_PROGRESS
+    _safe_addstr(win, y, 1, _format_time(pos), curses.color_pair(CP_DIM))
+    bx = len(_format_time(pos)) + 2
+    _safe_addstr(win, y, bx, "─" * bw, curses.color_pair(CP_DIM) | curses.A_DIM)
+    if filled > 0: _safe_addstr(win, y, bx, "━" * filled, curses.color_pair(col) | curses.A_BOLD)
+    hx = bx + filled
+    if hx < w - 7: _safe_addstr(win, y, hx, "⏸" if paused else "●", curses.color_pair(col) | curses.A_BOLD)
+    _safe_addstr(win, y, w - 6, _format_time(dur), curses.color_pair(CP_DIM))
 
-
-def _draw_progress_bar(win, y, position_s, duration_s, paused=False):
-    """Draw a playback progress bar with pause awareness."""
-    try:
-        h, w = win.getmaxyx()
-    except curses.error:
-        return
-    if y < 0 or y >= h or w < 20:
-        return
-
-    bar_width = w - 16
-    if bar_width < 5:
-        return
-
-    if duration_s <= 0:
-        frac = 0
-    else:
-        frac = max(0.0, min(1.0, position_s / duration_s))
-    filled = int(frac * bar_width)
-
-    pos_str = _format_time(position_s)
-    dur_str = _format_time(duration_s)
-
-    progress_color = CP_PAUSE if paused else CP_PROGRESS
-
-    _safe_addstr(win, y, 1, pos_str, curses.color_pair(CP_DIM))
-
-    bar_x = len(pos_str) + 2
-    _safe_addstr(win, y, bar_x, "─" * bar_width, curses.color_pair(CP_DIM) | curses.A_DIM)
-    if filled > 0:
-        _safe_addstr(win, y, bar_x, "━" * filled,
-                     curses.color_pair(progress_color) | curses.A_BOLD)
-
-    # Playback head
-    head_x = bar_x + filled
-    if head_x < w - len(dur_str) - 2:
-        head_char = "⏸" if paused else "●"
-        _safe_addstr(win, y, head_x, head_char,
-                     curses.color_pair(progress_color) | curses.A_BOLD)
-
-    _safe_addstr(win, y, w - len(dur_str) - 1, dur_str, curses.color_pair(CP_DIM))
-
-
-def _draw_box_header(win, title, artist, player_name, paused=False):
-    """Draw header box with song info."""
-    try:
-        h, w = win.getmaxyx()
-    except curses.error:
-        return 0
-    if h < 6 or w < 10:
-        return 0
-
-    border = "─" * max(0, w - 2)
-    _safe_addstr(win, 0, 0, "╭" + border + "╮", curses.color_pair(CP_HEADER) | curses.A_DIM)
-
-    status_icon = "⏸" if paused else "♫"
+def _draw_box_header(win, title, artist, player, paused=False, precision=False):
+    try: h, w = win.getmaxyx()
+    except: return 0
+    if h < 6 or w < 10: return 0
+    b = "─" * max(0, w - 2)
+    _safe_addstr(win, 0, 0, "╭" + b + "╮", curses.color_pair(CP_HEADER) | curses.A_DIM)
     _safe_addstr(win, 1, 0, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
-    _safe_addstr(win, 1, 2, f"{status_icon}  {title}", curses.color_pair(CP_CURRENT) | curses.A_BOLD)
+    _safe_addstr(win, 1, 2, f"{'⏸' if paused else '♫'}  {title}", curses.color_pair(CP_CURRENT) | curses.A_BOLD)
     _safe_addstr(win, 1, w - 1, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
-
     _safe_addstr(win, 2, 0, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
     _safe_addstr(win, 2, 2, f"◈  {artist}", curses.color_pair(CP_ACCENT))
     _safe_addstr(win, 2, w - 1, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
-
     _safe_addstr(win, 3, 0, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
-    _safe_addstr(win, 3, 2, f"▶  {player_name}", curses.color_pair(CP_DIM))
+    tag = "*" if precision else ""
+    _safe_addstr(win, 3, 2, f"▶  [{player}]{tag}", curses.color_pair(CP_DIM))
     _safe_addstr(win, 3, w - 1, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
-
-    _safe_addstr(win, 4, 0, "╰" + border + "╯", curses.color_pair(CP_HEADER) | curses.A_DIM)
+    _safe_addstr(win, 4, 0, "╰" + b + "╯", curses.color_pair(CP_HEADER) | curses.A_DIM)
     return 5
 
-
-def _get_line_attr(distance):
-    if distance == 0:
-        return curses.color_pair(CP_CURRENT) | curses.A_BOLD
-    elif abs(distance) == 1:
-        return curses.color_pair(CP_NEAR)
-    elif abs(distance) <= 3:
-        return curses.color_pair(CP_FAR)
-    else:
-        return curses.color_pair(CP_DIM) | curses.A_DIM
-
-
-def _get_player_state(bus_name):
-    """Get position and status from player. Returns (pos_s, duration_s, status) or None."""
-    try:
-        status = mpris.get_playback_status(bus_name)
-        pos_us = mpris.get_position_us(bus_name)
-        return pos_us / 1_000_000, status
-    except Exception:
-        return None
-
-
-def _check_song_changed(bus_name, current_title):
-    """Check if the current song title differs. Returns True if changed."""
-    try:
-        track = mpris.get_now_playing()
-        if track and track["title"] != current_title:
-            return True
-    except Exception:
-        pass
-    return False
-
-
 def _draw_big_word(stdscr, word, cy, attr=None):
-    """Draw a big block-letter word centered at row cy. Returns rows used."""
-    if attr is None:
-        attr = curses.color_pair(CP_BIG_WORD) | curses.A_BOLD
-    try:
-        h, w = stdscr.getmaxyx()
-    except curses.error:
-        return 0
-
-    if not word:
-        return 0
-
-    block_rows = _render_block_word(word)
-    block_w = _block_word_width(word)
-
-    if block_w > w - 4:
+    if attr is None: attr = curses.color_pair(CP_BIG_WORD) | curses.A_BOLD
+    try: h, w = stdscr.getmaxyx()
+    except: return 0
+    if not word: return 0
+    br = _render_block_word(word)
+    bw = _block_word_width(word)
+    if bw > w - 4:
         x = max(0, (w - len(word)) // 2)
         _safe_addstr(stdscr, cy, x, word.upper(), attr)
         return 1
     else:
-        x = max(0, (w - block_w) // 2)
-        start_y = cy - 2
-        for r, row in enumerate(block_rows):
-            _safe_addstr(stdscr, start_y + r, x, row, attr)
+        x, sy = max(0, (w - bw) // 2), cy - 2
+        for r, row in enumerate(br): _safe_addstr(stdscr, sy + r, x, row, attr)
         return 4
 
-
-def _draw_pause_overlay(stdscr, word, line_text):
-    """Draw pause indicator alongside the last word."""
-    try:
-        h, w = stdscr.getmaxyx()
-    except curses.error:
-        return
-
-    pause_label = "⏸ paused"
+def _draw_pause_overlay(s, w, l):
+    try: h, w_t = s.getmaxyx()
+    except: return
+    p = "⏸ paused"
     py = 2 if h > 8 else 0
-    _safe_addstr(stdscr, py, w - len(pause_label) - 2, pause_label,
-                 curses.color_pair(CP_PAUSE) | curses.A_DIM)
-
-
-# ──────────────────────────────────────────────
-#  FOCUS MODE — big word, one at a time
-# ──────────────────────────────────────────────
+    _safe_addstr(s, py, w_t - len(p) - 2, p, curses.color_pair(CP_PAUSE) | curses.A_DIM)
 
 class PlayerTracker:
-    """Manages player state with interpolation for silky smooth sync."""
-    def __init__(self, bus_name):
-        self.bus_name = bus_name
-        self.last_pos = 0.0
-        self.last_status = "Stopped"
-        self.last_update = time.monotonic()
-        self.poll_interval = 0.2
-        self.last_poll = 0.0
-
+    def __init__(self, bus):
+        self.bus, self.last_pos, self.last_status, self.last_update = bus, 0.0, "Stopped", time.monotonic()
+        self.poll_interval, self.last_poll = 0.2, 0.0
     def sync(self, force=False):
-        """Poll D-Bus and update internal state."""
         now = time.monotonic()
         if force or (now - self.last_poll > self.poll_interval):
-            info = mpris.get_player_info(self.bus_name)
+            info = mpris.get_player_info(self.bus)
             if info:
-                new_status, pos_us, _ = info
-                actual_pos = pos_us / 1_000_000
-                
-                if force or new_status != "Playing" or self.last_status != "Playing":
-                    self.last_pos = actual_pos
-                    self.last_update = now
+                st, pu, _ = info
+                ap = pu / 1_000_000
+                if force or st != "Playing" or self.last_status != "Playing": self.last_pos, self.last_update = ap, now
                 else:
-                    # Seek detection heuristic
-                    expected_pos = self.last_pos + (now - self.last_update)
-                    if abs(actual_pos - expected_pos) > 1.0:
-                        self.last_pos = actual_pos
-                        self.last_update = now
-                
-                self.last_status = new_status
-                self.last_poll = now
+                    if abs(ap - (self.last_pos + (now - self.last_update))) > 1.0: self.last_pos, self.last_update = ap, now
+                self.last_status, self.last_poll = st, now
             return True
         return False
-
     def get_pos(self):
-        """Get interpolated position."""
-        if self.last_status != "Playing":
-            return self.last_pos
+        if self.last_status != "Playing": return self.last_pos
         return self.last_pos + (time.monotonic() - self.last_update)
 
+def _check_song_changed(bus, title):
+    try:
+        t = mpris.get_now_playing()
+        return t and t["title"] != title
+    except: return False
 
-def run_focus(stdscr, synced_lyrics, track_info, has_karaoke=False, minimal=False):
-    """Display one word at a time with interpolation sync."""
-    curses.curs_set(0)
-    stdscr.nodelay(True)
-    stdscr.timeout(10)  # ~100fps polling for input/timer
-    _init_colors()
-
-    bus_name = track_info["bus_name"]
-    title = track_info["title"]
-    artist = track_info["artist"]
-    player_name = track_info["player"]
-    duration_s = track_info["duration_us"] / 1_000_000
-
-    tracker = PlayerTracker(bus_name)
-    tracker.sync(force=True)
-
-    lines = synced_lyrics
-    last_word, last_line_text = "", ""
-    last_word_idx, last_line_idx = -1, -1
-    last_ui_check = time.monotonic()
-    tracker.sync()
-    force_redraw = True
-
-    while True:
-        try:
-            key = stdscr.getch()
-        except curses.error:
-            key = -1
-
-        if key in (ord("q"), ord("Q"), 27): return "quit"
-        if key == ord("m"): minimal = not minimal; force_redraw = True
-        if key == curses.KEY_RESIZE:
-            force_redraw = True
-            try: stdscr.clear()
-            except curses.error: pass
-
-        tracker.sync()
-        if tracker.last_status == "Stopped": return "stopped"
-        
-        pos_s = tracker.get_pos()
-        paused = (tracker.last_status == "Paused")
-        now = time.monotonic()
-
-        # Song change check (every 1s)
-        if now - last_ui_check > 1.0:
-            last_ui_check = now
-            if _check_song_changed(bus_name, title): return "song_changed"
-
-        # Find current line/word from interpolated position
-        current_line_idx = -1
-        for i in range(len(lines) - 1, -1, -1):
-            if pos_s >= lines[i]["time"]:
-                current_line_idx = i
-                break
-
-        current_word, current_word_idx, full_line_text = "", -1, ""
-        current_word_full = ""
-        current_word_shown = ""
-
-        if current_line_idx >= 0:
-            line_data = lines[current_line_idx]
-            full_line_text = line_data["text"]
-            syllables = line_data["syllables"]
-            
-            if syllables:
-                # Find current syllable
-                si = 0
-                for j in range(len(syllables)-1, -1, -1):
-                    if pos_s >= syllables[j]["time"]:
-                        si = j
-                        break
-                
-                current_word_full = syllables[si]["text"]
-                current_word_idx = si
-                current_word_shown = current_word_full
-            else:
-                current_word_shown = "♫"
-                full_line_text = " "
-        else:
-            current_word_shown = "♫"
-            full_line_text = " "
-
-        display_word = current_word_shown
-        display_line = full_line_text if full_line_text.strip() else last_line_text
-
-        # Draw decision
-        if force_redraw or current_word_idx != last_word_idx or current_line_idx != last_line_idx or (now % 0.1 < 0.02):
-            force_redraw = False
-            try:
-                stdscr.erase()
-                h, w = stdscr.getmaxyx()
-                if h < 5 or w < 10: continue
-
-                if minimal:
-                    if display_word: 
-                        _draw_big_word(stdscr, display_word, h // 2, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
-                    if paused: _draw_pause_overlay(stdscr, display_word, display_line)
-                else:
-                    icon = "⏸" if paused else "♫"
-                    k_star = "*" if has_karaoke else ""
-                    info = f"{icon} {title}  ─  {artist}  [{player_name}{k_star}]"
-                    _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
-                    _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
-                    
-                    if display_word:
-                        _draw_big_word(stdscr, display_word, h//2 - 1, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
-                        if display_line.strip():
-                            cy = h//2 + 2
-                            cx = _center_x(stdscr, display_line)
-                            _safe_addstr(stdscr, cy, cx, display_line, curses.color_pair(CP_DIM))
-                            
-                            # Highlight current word in the line below
-                            if current_line_idx >= 0 and lines[current_line_idx]["syllables"]:
-                                syllables = lines[current_line_idx]["syllables"]
-                                current_si = current_word_idx
-                                if 0 <= current_si < len(syllables):
-                                    # Find start position of this word in display_line
-                                    # Note: this is a simple approximation
-                                    combined_words = [s["text"] for s in syllables]
-                                    before = " ".join(combined_words[:current_si])
-                                    hx = cx + len(before) + (1 if before else 0)
-                                    word_text = syllables[current_si]["text"]
-                                    _safe_addstr(stdscr, cy, hx, word_text, curses.color_pair(CP_CURRENT)|curses.A_BOLD)
-                    
-                    if h > 6: _draw_progress_bar(stdscr, h-2, pos_s, duration_s, paused)
-                    if h > 4:
-                        legend = "q quit  m minimal"
-                        _safe_addstr(stdscr, h-1, _center_x(stdscr, legend), legend, curses.color_pair(CP_DIM)|curses.A_DIM)
-                
-                stdscr.refresh()
-            except curses.error: pass
-
-        last_line_idx, last_word_idx = current_line_idx, current_word_idx
-        time.sleep(0.016)  # ~60fps target loop speed
-
-
-def run_focus_plain(stdscr, plain_lines, track_info, speed=1.0, minimal=False):
-    """Focus mode for plain lyrics with timer-based interpolation."""
+def run_focus(stdscr, synced, track_info, minimal=False):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
     _init_colors()
-
-    bus_name = track_info["bus_name"]
-    title, artist = track_info["title"], track_info["artist"]
-    player_name = track_info["player"]
-    duration_s = track_info["duration_us"] / 1_000_000
-
-    word_list = []
-    for line in plain_lines:
-        words = line.split() if line.strip() else []
-        if not words: word_list.append(("", "", -1))
-        else:
-            for wi, w in enumerate(words): word_list.append((w, line, wi))
-
-    if not word_list: return "quit"
-    word_delay = max(0.08, min(2.0/speed, (duration_s * 0.8) / len(word_list))) if duration_s > 0 else 0.25/speed
-
-    tracker = PlayerTracker(bus_name)
+    bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    dur, prec = track_info["duration_us"] / 1_000_000, track_info.get("high_precision", False)
+    tracker = PlayerTracker(bus)
     tracker.sync(force=True)
-
-    current_wi = 0
-    last_advance = time.monotonic()
-    last_ui_check = time.monotonic()
+    last_word_idx, last_line_idx, last_ui_check = -1, -1, time.monotonic()
+    h_m, w_m = stdscr.getmaxyx()
+    particles = ParticleEngine(h_m, w_m)
     force_redraw = True
+    last_line_text = ""
 
-    while current_wi < len(word_list):
-        try:
-            key = stdscr.getch()
-        except curses.error: key = -1
+    while True:
+        try: key = stdscr.getch()
+        except: key = -1
         if key in (ord("q"), ord("Q"), 27): return "quit"
         if key == ord("m"): minimal = not minimal; force_redraw = True
+        if key == ord("p"): particles.enabled = not particles.enabled; force_redraw = True
         if key == curses.KEY_RESIZE: force_redraw = True; stdscr.clear()
-
+        
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
-        
-        pos_s, paused = tracker.get_pos(), tracker.last_status == "Paused"
-        now = time.monotonic()
-
+        pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
         if now - last_ui_check > 1.0:
             last_ui_check = now
-            if _check_song_changed(bus_name, title): return "song_changed"
-
-        if not paused:
-            delay = word_delay if word_list[current_wi][0] else word_delay * 3
-            if now - last_advance > delay:
-                current_wi += 1
-                last_advance = now
-                force_redraw = True
-
-        if current_wi >= len(word_list): break
-        cw, fl, wil = word_list[current_wi]
-
-        if force_redraw or (now % 0.1 < 0.02):
+            if _check_song_changed(bus, title): return "song_changed"
+        
+        cur_l_idx = -1
+        for i in range(len(synced)-1, -1, -1):
+            if pos >= synced[i]["time"]: cur_l_idx = i; break
+        
+        cur_w_shown, cur_w_idx, full_txt = "♫", -1, " "
+        if cur_l_idx >= 0:
+            ld = synced[cur_l_idx]
+            full_txt, syl = ld["text"], ld["syllables"]
+            if syl:
+                si = 0
+                for j in range(len(syl)-1, -1, -1):
+                    if pos >= syl[j]["time"]: si = j; break
+                cur_w_shown, cur_w_idx = syl[si]["text"], si
+        
+        disp_w = cur_w_shown
+        disp_l = full_txt if full_txt.strip() else last_line_text
+        
+        if force_redraw or cur_w_idx != last_word_idx or cur_l_idx != last_line_idx or (now % 0.05 < 0.02):
             force_redraw = False
             try:
                 stdscr.erase()
                 h, w = stdscr.getmaxyx()
                 if h < 5 or w < 10: continue
+                is_instr = (disp_w == "♫")
+                particles.update(h, w)
+                particles.draw(stdscr, intensity="mid" if is_instr else "low")
+                if minimal:
+                    if disp_w: _draw_big_word(stdscr, disp_w, h // 2, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
+                    if paused: _draw_pause_overlay(stdscr, disp_w, disp_l)
+                else:
+                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist}  [{player}]{'*' if prec else ''}"
+                    _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
+                    _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if disp_w:
+                        _draw_big_word(stdscr, disp_w, h//2 - 1, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
+                        if disp_l.strip():
+                            cy, cx = h//2 + 2, _center_x(stdscr, disp_l)
+                            _safe_addstr(stdscr, cy, cx, disp_l, curses.color_pair(CP_DIM))
+                            if cur_l_idx >= 0 and synced[cur_l_idx]["syllables"]:
+                                syl = synced[cur_l_idx]["syllables"]
+                                if 0 <= cur_w_idx < len(syl):
+                                    before = " ".join([s["text"] for s in syl[:cur_w_idx]])
+                                    hx = cx + len(before) + (1 if before else 0)
+                                    _safe_addstr(stdscr, cy, hx, syl[cur_w_idx]["text"], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
+                    if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
+                    if h > 4:
+                        leg = "q quit  m minimal  p particles"
+                        _safe_addstr(stdscr, h-1, _center_x(stdscr, leg), leg, curses.color_pair(CP_DIM)|curses.A_DIM)
+                stdscr.refresh()
+            except: pass
+        last_line_idx, last_word_idx = cur_l_idx, cur_w_idx
+        time.sleep(0.016)
 
+def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False):
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+    stdscr.timeout(10)
+    _init_colors()
+    bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    dur = track_info["duration_us"] / 1_000_000
+    words = []
+    for l in plain:
+        ws = l.split() if l.strip() else []
+        if not ws: words.append(("", "", -1))
+        else:
+            for i, w in enumerate(ws): words.append((w, l, i))
+    if not words: return "quit"
+    wd = max(0.08, min(2.0/speed, (dur*0.8)/len(words))) if dur > 0 else 0.25/speed
+    tracker = PlayerTracker(bus)
+    tracker.sync(force=True)
+    cur_wi, last_adv, last_ui = 0, time.monotonic(), time.monotonic()
+    h_p, w_p = stdscr.getmaxyx()
+    particles = ParticleEngine(h_p, w_p)
+    force = True
+    while cur_wi < len(words):
+        try: k = stdscr.getch()
+        except: k = -1
+        if k in (ord("q"), ord("Q"), 27): return "quit"
+        if k == ord("m"): minimal = not minimal; force = True
+        if k == ord("p"): particles.enabled = not particles.enabled; force = True
+        if k == curses.KEY_RESIZE: force = True; stdscr.clear()
+        tracker.sync()
+        if tracker.last_status == "Stopped": return "stopped"
+        pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
+        if now - last_ui > 1.0:
+            last_ui = now
+            if _check_song_changed(bus, title): return "song_changed"
+        if not paused:
+            if now - last_adv > (wd if words[cur_wi][0] else wd*3): cur_wi += 1; last_adv = now; force = True
+        if cur_wi >= len(words): break
+        cw, fl, wil = words[cur_wi]
+        if force or (now % 0.05 < 0.02):
+            force = False
+            try:
+                stdscr.erase()
+                h, w = stdscr.getmaxyx()
+                if h < 5 or w < 10: continue
+                particles.update(h, w)
+                particles.draw(stdscr, intensity="mid" if not cw else "low")
                 if minimal:
                     if cw: _draw_big_word(stdscr, cw, h//2)
                     if paused: _draw_pause_overlay(stdscr, cw, fl)
                 else:
-                    icon = "⏸" if paused else "♫"
-                    info = f"{icon} {title}  ─  {artist} [{player_name}]"
+                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist} [{player}]"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
                     _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
                     if cw:
@@ -697,293 +465,161 @@ def run_focus_plain(stdscr, plain_lines, track_info, speed=1.0, minimal=False):
                         if fl.strip():
                             cy, cx = h//2 + 2, _center_x(stdscr, fl)
                             _safe_addstr(stdscr, cy, cx, fl, curses.color_pair(CP_DIM))
-                            words = fl.split()
-                            if 0 <= wil < len(words):
-                                before = " ".join(words[:wil])
-                                hx = cx + len(before) + (1 if before else 0)
-                                _safe_addstr(stdscr, cy, hx, words[wil], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
-                    if h > 6: _draw_progress_bar(stdscr, h-2, pos_s, duration_s, paused)
-                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal"), "q quit  m minimal", curses.color_pair(CP_DIM)|curses.A_DIM)
+                            ws = fl.split()
+                            if 0 <= wil < len(ws):
+                                b = " ".join(ws[:wil])
+                                _safe_addstr(stdscr, cy, cx + len(b) + (1 if b else 0), ws[wil], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
+                    if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
+                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  p particles"), "q quit  m minimal  p particles", curses.color_pair(CP_DIM)|curses.A_DIM)
                 stdscr.refresh()
-            except curses.error: pass
+            except: pass
         time.sleep(0.016)
-
     return "finished"
 
-
-# ──────────────────────────────────────────────
-#  SCROLL MODE — synced lyrics scroll view
-# ──────────────────────────────────────────────
-
-def run_synced(stdscr, synced_lyrics, track_info, has_karaoke=False):
-    """Display synced lyrics scrolling with silky interpolation."""
+def run_synced(stdscr, synced, track_info):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
     _init_colors()
-
-    bus_name = track_info["bus_name"]
-    title, artist = track_info["title"], track_info["artist"]
-    player_name = track_info["player"]
-    duration_s = track_info["duration_us"] / 1_000_000
-
-    tracker = PlayerTracker(bus_name)
+    bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    dur, prec = track_info["duration_us"] / 1_000_000, track_info.get("high_precision", False)
+    tracker = PlayerTracker(bus)
     tracker.sync(force=True)
-
-    lines = synced_lyrics
-    current_scroll = 0.0
-    last_ui_check = time.monotonic()
-
+    cur_sc, last_ui = 0.0, time.monotonic()
+    h_s, w_s = stdscr.getmaxyx()
+    particles = ParticleEngine(h_s, w_s)
     while True:
-        try:
-            key = stdscr.getch()
-        except curses.error: key = -1
-        if key in (ord("q"), ord("Q"), 27): return "quit"
-        if key == curses.KEY_RESIZE: stdscr.clear()
-
+        try: k = stdscr.getch()
+        except: k = -1
+        if k in (ord("q"), ord("Q"), 27): return "quit"
+        if k == ord("p"): particles.enabled = not particles.enabled
+        if k == curses.KEY_RESIZE: stdscr.clear()
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
-        
-        pos_s, paused = tracker.get_pos(), tracker.last_status == "Paused"
-        now = time.monotonic()
-
-        if now - last_ui_check > 1.0:
-            last_ui_check = now
-            if _check_song_changed(bus_name, title): return "song_changed"
-
-        # Find current line
-        current_idx = -1
-        for i in range(len(lines) - 1, -1, -1):
-            if pos_s >= lines[i]["time"]:
-                current_idx = i
-                break
-
-        # Word reveal logic for scroll view
-        word_reveal = 0
-        words = []
-        if current_idx >= 0:
-            syllables = lines[current_idx]["syllables"]
-            if syllables:
-                for si, s in enumerate(syllables):
-                    if pos_s >= s["time"]:
-                        word_reveal = si + 1
-                words = [s["text"] for s in syllables]
-            else:
-                text = lines[current_idx]["text"]
-                words = text.split() if text else []
-                word_reveal = len(words)
-
-        # Smooth scroll
-        target = float(current_idx) if current_idx >= 0 else 0.0
-        current_scroll += (target - current_scroll) * 0.18
-
-        # Draw
+        pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
+        if now - last_ui > 1.0:
+            last_ui = now
+            if _check_song_changed(bus, title): return "song_changed"
+        cur_idx = -1
+        for i in range(len(synced)-1, -1, -1):
+            if pos >= synced[i]["time"]: cur_idx = i; break
+        cur_sc += (float(cur_idx if cur_idx >= 0 else 0) - cur_sc) * 0.18
         try:
             stdscr.erase()
             h, w = stdscr.getmaxyx()
             if h < 6 or w < 10: continue
-
-            k_star = "*" if has_karaoke else ""
-            header_h = _draw_box_header(stdscr, title, artist, f"{player_name}{k_star}", paused)
-            top, bottom = header_h + 1, h - 3
-            height = bottom - top
-            if height < 3:
-                stdscr.refresh()
-                continue
-
-            center_y = top + height // 2
-            for i, (ts, text) in enumerate(lines):
-                dist = i - current_idx
-                vis_off = i - current_scroll
-                dy = center_y + int(vis_off)
-                if dy < top or dy >= bottom: continue
-
+            particles.update(h, w)
+            particles.draw(stdscr)
+            hh = _draw_box_header(stdscr, title, artist, player, paused, precision=prec)
+            top, bot = hh + 1, h - 3
+            if bot - top < 3: stdscr.refresh(); continue
+            cy = top + (bot - top) // 2
+            for i, (ts, text) in enumerate([(l["time"], l["text"]) for l in synced]):
+                dy = cy + int(i - cur_sc)
+                if dy < top or dy >= bot: continue
+                attr = curses.color_pair(CP_CURRENT)|curses.A_BOLD if i == cur_idx else curses.color_pair(CP_NEAR if abs(i-cur_idx)==1 else CP_FAR if abs(i-cur_idx)<=3 else CP_DIM)
                 if not text.strip():
-                    if dist == 0:
-                        m = "· · ·"
-                        _safe_addstr(stdscr, dy, _center_x(stdscr, m), m, curses.color_pair(CP_INSTRUMENTAL)|curses.A_DIM)
-                    continue
-
-                if dist == 0 and words:
-                    vis, hid = " ".join(words[:word_reveal]), " ".join(words[word_reveal:])
-                    x = _center_x(stdscr, text)
-                    _safe_addstr(stdscr, dy, x, vis, curses.color_pair(CP_CURRENT)|curses.A_BOLD)
-                    if hid: _safe_addstr(stdscr, dy, x + len(vis) + 1, hid, curses.color_pair(CP_DIM)|curses.A_DIM)
-                else:
-                    _safe_addstr(stdscr, dy, _center_x(stdscr, text), text, _get_line_attr(dist))
-
-            if h > 5: _draw_progress_bar(stdscr, h - 2, pos_s, duration_s, paused)
-            _safe_addstr(stdscr, h - 1, _center_x(stdscr, "q quit  ─  liyri"), "q quit  ─  liyri", curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if i == cur_idx: _safe_addstr(stdscr, dy, _center_x(stdscr, "· · ·"), "· · ·", curses.color_pair(CP_INSTRUMENTAL))
+                else: _safe_addstr(stdscr, dy, _center_x(stdscr, text), text, attr)
+            if h > 4: _draw_progress_bar(stdscr, h - 2, pos, dur, paused)
             stdscr.refresh()
-        except curses.error: pass
+        except: pass
         time.sleep(0.016)
 
-
-def run_static(stdscr, plain_lines, track_info, speed=1.0):
-    """Display plain lyrics with interpolated animation."""
+def run_waiting(stdscr, player_filter):
     curses.curs_set(0)
     stdscr.nodelay(True)
-    stdscr.timeout(10)
+    stdscr.timeout(500)
     _init_colors()
-
-    bus_name = track_info["bus_name"]
-    title, artist = track_info["title"], track_info["artist"]
-    player_name = track_info["player"]
-    duration_s = track_info["duration_us"] / 1_000_000
-
-    lines = [l for l in plain_lines if l.strip()] # filter early for easier index
-    tracker = PlayerTracker(bus_name)
-    tracker.sync(force=True)
-
-    word_delay = max(0.08, min(2.0/speed, (duration_s * 0.8) / sum(len(l.split()) for l in lines))) if duration_s > 0 and lines else 0.08/speed
-    current_line, word_idx = 0, 0
-    last_word_time = time.monotonic()
-    current_scroll = 0.0
-    last_ui_check = time.monotonic()
-    completed = set()
-
+    h_w, w_w = stdscr.getmaxyx()
+    particles = ParticleEngine(h_w, w_w)
     while True:
-        try:
-            key = stdscr.getch()
-        except curses.error: key = -1
-        if key in (ord("q"), ord("Q"), 27): return "quit"
-        if key == curses.KEY_RESIZE: stdscr.clear()
-
-        tracker.sync()
-        if tracker.last_status == "Stopped": return "stopped"
-        
-        pos_s, paused = tracker.get_pos(), tracker.last_status == "Paused"
-        now = time.monotonic()
-
-        if now - last_ui_check > 1.0:
-            last_ui_check = now
-            if _check_song_changed(bus_name, title): return "song_changed"
-
-        if not paused and current_line < len(lines):
-            lt = lines[current_line]
-            lw = lt.split()
-            if not lw or word_idx >= len(lw):
-                if now - last_word_time > (0.4/speed if not lw else 0.5/speed):
-                    completed.add(current_line)
-                    current_line += 1
-                    word_idx, last_word_time = 0, now
-            elif now - last_word_time > word_delay:
-                word_idx += 1
-                last_word_time = now
-        elif current_line >= len(lines): return "finished"
-
-        current_scroll += (float(current_line) - current_scroll) * 0.15
-
-        try:
-            stdscr.erase()
-            h, w = stdscr.getmaxyx()
-            if h < 6 or w < 10: continue
-
-            header_h = _draw_box_header(stdscr, title, artist, player_name, paused)
-            top, bottom = header_h + 1, h - 3
-            height = bottom - top
-            if height < 3:
-                stdscr.refresh()
-                continue
-
-            center_y = top + height // 2
-            for i, text in enumerate(lines):
-                dist = i - current_line
-                vis_off = i - current_scroll
-                dy = center_y + int(vis_off)
-                if dy < top or dy >= bottom: continue
-
-                if i == current_line:
-                    lw = text.split()
-                    vis, hid = " ".join(lw[:word_idx]), " ".join(lw[word_idx:])
-                    x = _center_x(stdscr, text)
-                    _safe_addstr(stdscr, dy, x, vis, curses.color_pair(CP_CURRENT)|curses.A_BOLD)
-                    if hid: _safe_addstr(stdscr, dy, x + len(vis) + (1 if vis else 0), hid, curses.color_pair(CP_DIM)|curses.A_DIM)
-                elif i in completed:
-                    _safe_addstr(stdscr, dy, _center_x(stdscr, text), text, _get_line_attr(dist))
-                elif abs(dist) <= 4:
-                    _safe_addstr(stdscr, dy, _center_x(stdscr, text), text, curses.color_pair(CP_DIM)|curses.A_DIM)
-
-            if h > 5: _draw_progress_bar(stdscr, h - 2, pos_s, duration_s, paused)
-            _safe_addstr(stdscr, h - 1, _center_x(stdscr, "q quit  ─  liyri"), "q quit  ─  liyri", curses.color_pair(CP_DIM)|curses.A_DIM)
-            stdscr.refresh()
-        except curses.error: pass
-        time.sleep(0.016)
-
-
-# ──────────────────────────────────────────────
-#  Waiting / utility screens
-# ──────────────────────────────────────────────
-
-def run_waiting(stdscr, player_name_filter=None):
-    """Wait for media to start playing. Returns track_info or None."""
-    curses.curs_set(0)
-    stdscr.nodelay(True)
-    stdscr.timeout(100)
-    _init_colors()
-
-    dots = 0
-    last_dot = time.monotonic()
-
-    while True:
-        try:
-            key = stdscr.getch()
-        except curses.error:
-            key = -1
-        if key in (ord("q"), ord("Q"), 27):
-            return None
-        if key == curses.KEY_RESIZE:
-            try:
-                stdscr.clear()
-            except curses.error:
-                pass
-
-        now = time.monotonic()
-        if now - last_dot > 0.5:
-            dots = (dots + 1) % 4
-            last_dot = now
-
-        track = mpris.get_now_playing(player_name_filter)
-        if track:
-            return track
-
-        try:
-            stdscr.erase()
-            h, w = stdscr.getmaxyx()
-        except curses.error:
-            time.sleep(0.100)
-            continue
-
-        icon = "♫"
-        dot_str = "." * dots + " " * (3 - dots)
-        msg = f"  waiting for media{dot_str}"
-        cy = h // 2
-        _safe_addstr(stdscr, cy - 1, _center_x(stdscr, icon), icon,
-                     curses.color_pair(CP_ACCENT) | curses.A_BOLD)
-        _safe_addstr(stdscr, cy + 1, _center_x(stdscr, msg), msg,
-                     curses.color_pair(CP_DIM))
-
-        hint = "q quit  ─  play something to begin"
-        _safe_addstr(stdscr, h - 1, _center_x(stdscr, hint), hint,
-                     curses.color_pair(CP_DIM) | curses.A_DIM)
-
-        try:
-            stdscr.refresh()
-        except curses.error:
-            pass
-        time.sleep(0.050)
-
-
-def show_fetching(stdscr, title, artist):
-    """Brief fetching indicator."""
-    try:
-        _init_colors()
-        curses.curs_set(0)
+        try: k = stdscr.getch()
+        except: k = -1
+        if k in (ord("q"), ord("Q"), 27): return None
+        if k == ord("p"): particles.enabled = not particles.enabled
+        t = mpris.get_now_playing(player_filter)
+        if t: return t
         stdscr.erase()
         h, w = stdscr.getmaxyx()
-        icon = "♫"
-        _safe_addstr(stdscr, h // 2, _center_x(stdscr, icon), icon,
-                     curses.color_pair(CP_ACCENT) | curses.A_BOLD)
+        particles.update(h, w)
+        particles.draw(stdscr)
+        m = "♫  waiting for player..."
+        _safe_addstr(stdscr, h//2, _center_x(stdscr, m), m, curses.color_pair(CP_DIM))
         stdscr.refresh()
-    except curses.error:
-        pass
+
+def run_static(stdscr, lines, track_info, speed=1.0):
+    curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
+    bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    dur = track_info["duration_us"] / 1_000_000
+    tracker = PlayerTracker(bus); tracker.sync(force=True)
+    h_st, w_st = stdscr.getmaxyx()
+    particles = ParticleEngine(h_st, w_st)
+    while True:
+        try: k = stdscr.getch()
+        except: k = -1
+        if k in (ord("q"), ord("Q"), 27): return "quit"
+        if k == ord("p"): particles.enabled = not particles.enabled
+        tracker.sync(); pos, paused = tracker.get_pos(), tracker.last_status == "Paused"
+        if _check_song_changed(bus, title): return "song_changed"
+        idx = int((pos / dur) * len(lines)) if dur > 0 else 0
+        idx = max(0, min(len(lines)-1, idx))
+        try:
+            stdscr.erase(); h, w = stdscr.getmaxyx()
+            particles.update(h, w); particles.draw(stdscr)
+            hh = _draw_box_header(stdscr, title, artist, player, paused)
+            top, bot = hh + 1, h - 3
+            cy = top + (bot - top) // 2
+            for i, text in enumerate(lines):
+                dy = cy + (i - idx)
+                if dy < top or dy >= bot: continue
+                attr = curses.color_pair(CP_CURRENT)|curses.A_BOLD if i == idx else curses.color_pair(CP_FAR)
+                _safe_addstr(stdscr, dy, _center_x(stdscr, text), text, attr)
+            if h > 4: _draw_progress_bar(stdscr, h - 2, pos, dur, paused)
+            stdscr.refresh()
+        except: pass
+        time.sleep(0.05)
+
+def show_fetching(stdscr, title, artist):
+    _init_colors(); stdscr.erase(); h, w = stdscr.getmaxyx()
+    m = f"fetching lyrics for {title}..."
+    _safe_addstr(stdscr, h//2, _center_x(stdscr, m), m, curses.color_pair(CP_DIM))
+    stdscr.refresh()
+
+def run_no_lyrics(stdscr, track_info):
+    curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
+    bus, title, artist = track_info["bus_name"], track_info["title"], track_info["artist"]
+    dur = track_info["duration_us"] / 1_000_000
+    last_check = time.monotonic()
+    h_n, w_n = stdscr.getmaxyx()
+    particles = ParticleEngine(h_n, w_n)
+    while True:
+        try: k = stdscr.getch()
+        except: k = -1
+        if k in (ord("q"), ord("Q"), 27): return "quit"
+        if k == ord("p"): particles.enabled = not particles.enabled
+        now = time.monotonic()
+        try:
+            status = mpris.get_playback_status(bus)
+            pos_us = mpris.get_position_us(bus)
+        except: return "player_closed"
+        if status == "Stopped": return "stopped"
+        pos_s = pos_us / 1_000_000
+        if now - last_check > 1.5:
+            last_check = now
+            if _check_song_changed(bus, title): return "song_changed"
+        try:
+            stdscr.erase(); h, w = stdscr.getmaxyx()
+            particles.update(h, w); particles.draw(stdscr, intensity="mid")
+            info = f"♫ {title}  ─  {artist}"
+            _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
+            msg = "no lyrics found"
+            _safe_addstr(stdscr, h // 2, _center_x(stdscr, msg), msg, curses.color_pair(CP_DIM))
+            hint = "waiting for next song..."
+            _safe_addstr(stdscr, h // 2 + 2, _center_x(stdscr, hint), hint, curses.color_pair(CP_DIM) | curses.A_DIM)
+            _draw_progress_bar(stdscr, h - 2, pos_s, dur)
+            footer = "q quit  p particles  ─  liyri"
+            _safe_addstr(stdscr, h - 1, _center_x(stdscr, footer), footer, curses.color_pair(CP_DIM) | curses.A_DIM)
+            stdscr.refresh()
+        except: pass
+        time.sleep(0.05)

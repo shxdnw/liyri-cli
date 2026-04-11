@@ -54,24 +54,25 @@ def _run_app(stdscr, args):
 
         display.show_fetching(stdscr, title, artist)
         result = _fetch_for_track(track)
+        
+        if result:
+            track["high_precision"] = result.get("high_precision", False)
 
         use_synced = result and result["synced_lyrics"] and not no_sync
         has_plain = result and result["plain_lyrics"]
 
-        has_karaoke = result.get("has_karaoke", False) if result else False
-
         if mode == "focus":
             if use_synced:
                 ret = display.run_focus(stdscr, result["synced_lyrics"],
-                                        track, has_karaoke=has_karaoke, minimal=minimal)
+                                        track, minimal=minimal)
             elif has_plain:
                 ret = display.run_focus_plain(stdscr, result["plain_lyrics"],
                                               track, speed=speed, minimal=minimal)
             else:
-                ret = _run_no_lyrics(stdscr, track)
+                ret = display.run_no_lyrics(stdscr, track)
         elif mode == "scroll":
             if use_synced:
-                ret = display.run_synced(stdscr, result["synced_lyrics"], track, has_karaoke=has_karaoke)
+                ret = display.run_synced(stdscr, result["synced_lyrics"], track)
             elif has_plain:
                 ret = display.run_static(stdscr, result["plain_lyrics"],
                                           track, speed=speed)
@@ -92,73 +93,6 @@ def _run_app(stdscr, args):
             continue
         else:
             return
-
-
-def _run_no_lyrics(stdscr, track_info):
-    curses.curs_set(0)
-    stdscr.nodelay(True)
-    stdscr.timeout(100)
-    display._init_colors()
-
-    bus_name = track_info["bus_name"]
-    title = track_info["title"]
-    artist = track_info["artist"]
-    player_name = track_info["player"]
-    duration_s = track_info["duration_us"] / 1_000_000
-
-    import time
-    last_check = time.monotonic()
-
-    while True:
-        try:
-            key = stdscr.getch()
-        except curses.error:
-            key = -1
-        if key in (ord("q"), ord("Q"), 27):
-            return "quit"
-
-        now = time.monotonic()
-
-        try:
-            status = mpris.get_playback_status(bus_name)
-            pos_us = mpris.get_position_us(bus_name)
-        except Exception:
-            return "player_closed"
-
-        if status == "Stopped":
-            return "stopped"
-
-        pos_s = pos_us / 1_000_000
-
-        if now - last_check > 1.5:
-            last_check = now
-            new_track = display._check_song_changed(bus_name, title)
-            if new_track:
-                return "song_changed"
-
-        stdscr.erase()
-        h, w = stdscr.getmaxyx()
-
-        info = f"♫ {title}  ─  {artist}"
-        display._safe_addstr(stdscr, 0, display._center_x(stdscr, info), info,
-                             curses.color_pair(display.CP_HEADER))
-
-        msg = "no lyrics found"
-        display._safe_addstr(stdscr, h // 2, display._center_x(stdscr, msg), msg,
-                             curses.color_pair(display.CP_DIM))
-
-        hint = "waiting for next song..."
-        display._safe_addstr(stdscr, h // 2 + 2, display._center_x(stdscr, hint), hint,
-                             curses.color_pair(display.CP_DIM) | curses.A_DIM)
-
-        display._draw_progress_bar(stdscr, h - 2, pos_s, duration_s)
-
-        footer = "q quit  ─  liyri"
-        display._safe_addstr(stdscr, h - 1, display._center_x(stdscr, footer), footer,
-                             curses.color_pair(display.CP_DIM) | curses.A_DIM)
-
-        stdscr.refresh()
-        time.sleep(0.050)
 
 
 def main():

@@ -1,7 +1,4 @@
 #!/bin/bash
-# Install liyri as a system-wide command
-# This creates a symlink in /usr/local/bin so you can run `liyri` from anywhere
-
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +6,6 @@ WRAPPER="/usr/local/bin/liyri"
 
 echo "♫  Installing liyri..."
 
-# Check dependencies
 python3 -c "import dbus, requests, thefuzz" 2>/dev/null || {
     echo "Error: Missing Python dependencies."
     echo "Install them with:"
@@ -19,7 +15,6 @@ python3 -c "import dbus, requests, thefuzz" 2>/dev/null || {
     exit 1
 }
 
-# Create wrapper script
 sudo tee "$WRAPPER" > /dev/null << EOF
 #!/bin/bash
 cd "$SCRIPT_DIR"

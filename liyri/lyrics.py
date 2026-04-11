@@ -4,7 +4,7 @@ from thefuzz import fuzz
 
 LRCLIB_BASE = "https://lrclib.net"
 NETEASE_BASE = "http://music.163.com/api"
-USER_AGENT = "liyri-cli/1.2.0"
+USER_AGENT = "liyri-cli/1.1.0"
 TIMEOUT = 5
 
 _LYRICS_CACHE = {}
@@ -77,13 +77,14 @@ def _try_search(title, artist):
 def _parse_response(data):
     synced_raw = data.get("syncedLyrics", "")
     plain_raw = data.get("plainLyrics", "")
-    synced, has_k = parse_synced_lyrics(synced_raw) if synced_raw else (None, False)
+    res = parse_synced_lyrics(synced_raw) if synced_raw else None
+    synced, krc = res if res else (None, False)
     plain = [l for l in plain_raw.split("\n")] if plain_raw else None
     if not synced and not plain: return None
     return {
         "synced_lyrics": synced, "plain_lyrics": plain, "source": "lrclib",
-        "has_karaoke": has_k,
-        "track_name": data.get("trackName", ""), "artist_name": data.get("artistName", "")
+        "track_name": data.get("trackName", ""), "artist_name": data.get("artistName", ""),
+        "high_precision": krc
     }
 
 def _parse_timestamp(m):
@@ -114,16 +115,17 @@ def _fetch_netease_lyrics(title, artist):
         if lyr_resp.status_code != 200: return None
         
         data = lyr_resp.json()
-        lrc, krc = data.get("lrc", {}).get("lyric", ""), data.get("klyric", {}).get("lyric", "")
-        best = krc if krc else lrc
+        lrc, krc_raw = data.get("lrc", {}).get("lyric", ""), data.get("klyric", {}).get("lyric", "")
+        best = krc_raw if krc_raw else lrc
         if not best: return None
 
-        synced, has_k = parse_synced_lyrics(best)
+        res = parse_synced_lyrics(best)
+        synced, krc = res if res else (None, False)
         plain = [l.strip() for l in best.split('\n') if l.strip()] if not synced else [l["text"] for l in synced]
         return {
             "synced_lyrics": synced, "plain_lyrics": plain, "source": "netease",
-            "has_karaoke": has_k,
-            "track_name": scored[0][1].get("name", title), "artist_name": scored[0][1].get("artists", [{}])[0].get("name", artist)
+            "track_name": scored[0][1].get("name", title), "artist_name": scored[0][1].get("artists", [{}])[0].get("name", artist),
+            "high_precision": krc
         }
     except: return None
 
@@ -157,16 +159,16 @@ def parse_synced_lyrics(lrc_string):
     if not lines: return None
     lines.sort(key=lambda x: x["time"])
     
-    # Check if we have real karaoke data before guessing
-    has_karaoke = any(l["syllables"] for l in lines)
-
+    krc_found = any(l["syllables"] for l in lines)
+    
     for i in range(len(lines)):
         l = lines[i]
         if not l["syllables"] and l["text"].strip():
+            l["_guessed"] = True
             dur = max(0.5, lines[i+1]["time"] - l["time"]) if i+1 < len(lines) else 5.0
             words = l["text"].split()
             if words:
                 wdur = dur / len(words)
                 for j, w in enumerate(words):
                     l["syllables"].append({"time": l["time"] + (j * wdur), "text": w})
-    return lines, has_karaoke
+    return lines, krc_found
