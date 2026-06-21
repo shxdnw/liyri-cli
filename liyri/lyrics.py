@@ -129,6 +129,13 @@ def _fetch_netease_lyrics(title, artist):
         }
     except: return None
 
+def _estimate_final_line_dur(lines):
+    gaps = [lines[i+1]["time"] - lines[i]["time"] for i in range(len(lines)-1)]
+    if gaps:
+        return max(0.5, sum(gaps) / len(gaps))
+    return 5.0
+
+
 def parse_synced_lyrics(lrc_string):
     ltag = re.compile(r"\[(\d+):(\d{2})(?:\.(\d+))?.*?\]")
     wtag = re.compile(r"<(\d+):(\d{2})(?:\.(\d+))?.*?>")
@@ -165,7 +172,7 @@ def parse_synced_lyrics(lrc_string):
         l = lines[i]
         if not l["syllables"] and l["text"].strip():
             l["_guessed"] = True
-            dur = max(0.5, lines[i+1]["time"] - l["time"]) if i+1 < len(lines) else 5.0
+            dur = max(0.5, lines[i+1]["time"] - l["time"]) if i+1 < len(lines) else _estimate_final_line_dur(lines)
             words = l["text"].split()
             if words:
                 wdur = dur / len(words)
