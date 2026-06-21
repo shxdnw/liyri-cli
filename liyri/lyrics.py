@@ -5,7 +5,7 @@ from thefuzz import fuzz
 LRCLIB_BASE = "https://lrclib.net"
 NETEASE_BASE = "http://music.163.com/api"
 USER_AGENT = "liyri-cli/1.2.0"
-TIMEOUT = 5
+TIMEOUT = 3
 
 _LYRICS_CACHE = {}
 _CACHE_MAX = 200
