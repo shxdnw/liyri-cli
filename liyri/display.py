@@ -318,9 +318,9 @@ class PlayerTracker:
         if self.last_status != "Playing": return self.last_pos
         return self.last_pos + (time.monotonic() - self.last_update)
 
-def _check_song_changed(bus, title):
+def _check_song_changed(player_filter, title):
     try:
-        t = mpris.get_now_playing()
+        t = mpris.get_now_playing(player_filter)
         return t and t["title"] != title
     except: return False
 
@@ -352,7 +352,7 @@ def run_focus(stdscr, synced, track_info, minimal=False):
         pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
         if now - last_ui_check > 1.0:
             last_ui_check = now
-            if _check_song_changed(bus, title): return "song_changed"
+            if _check_song_changed(player, title): return "song_changed"
         
         cur_l_idx = -1
         for i in range(len(synced)-1, -1, -1):
@@ -440,7 +440,7 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False):
         pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
         if now - last_ui > 1.0:
             last_ui = now
-            if _check_song_changed(bus, title): return "song_changed"
+            if _check_song_changed(player, title): return "song_changed"
         if not paused:
             if now - last_adv > (wd if words[cur_wi][0] else wd*3): cur_wi += 1; last_adv = now; force = True
         if cur_wi >= len(words): break
@@ -499,7 +499,7 @@ def run_synced(stdscr, synced, track_info):
         pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
         if now - last_ui > 1.0:
             last_ui = now
-            if _check_song_changed(bus, title): return "song_changed"
+            if _check_song_changed(player, title): return "song_changed"
         cur_idx = -1
         for i in range(len(synced)-1, -1, -1):
             if pos >= synced[i]["time"]: cur_idx = i; break
@@ -561,7 +561,7 @@ def run_static(stdscr, lines, track_info, speed=1.0):
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
         tracker.sync(); pos, paused = tracker.get_pos(), tracker.last_status == "Paused"
-        if _check_song_changed(bus, title): return "song_changed"
+        if _check_song_changed(player, title): return "song_changed"
         idx = int((pos / dur) * len(lines)) if dur > 0 else 0
         idx = max(0, min(len(lines)-1, idx))
         try:
@@ -607,7 +607,7 @@ def run_no_lyrics(stdscr, track_info):
         pos_s = pos_us / 1_000_000
         if now - last_check > 1.5:
             last_check = now
-            if _check_song_changed(bus, title): return "song_changed"
+            if _check_song_changed(player, title): return "song_changed"
         try:
             stdscr.erase(); h, w = stdscr.getmaxyx()
             particles.update(h, w); particles.draw(stdscr, intensity="mid")
