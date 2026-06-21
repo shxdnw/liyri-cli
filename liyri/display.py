@@ -290,12 +290,12 @@ def _draw_big_word(stdscr, word, cy, attr=None):
         for r, row in enumerate(br): _safe_addstr(stdscr, sy + r, x, row, attr)
         return 4
 
-def _draw_pause_overlay(s, w, l):
-    try: h, w_t = s.getmaxyx()
+def _draw_pause_overlay(s):
+    try: h, w = s.getmaxyx()
     except: return
     p = "⏸ paused"
     py = 2 if h > 8 else 0
-    _safe_addstr(s, py, w_t - len(p) - 2, p, curses.color_pair(CP_PAUSE) | curses.A_DIM)
+    _safe_addstr(s, py, w - len(p) - 2, p, curses.color_pair(CP_PAUSE) | curses.A_DIM)
 
 class PlayerTracker:
     def __init__(self, bus):
@@ -382,7 +382,7 @@ def run_focus(stdscr, synced, track_info, minimal=False):
                 particles.draw(stdscr, intensity="mid" if is_instr else "low")
                 if minimal:
                     if disp_w: _draw_big_word(stdscr, disp_w, h // 2, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
-                    if paused: _draw_pause_overlay(stdscr, disp_w, disp_l)
+                    if paused: _draw_pause_overlay(stdscr)
                 else:
                     info = f"{'⏸' if paused else '♫'} {title}  ─  {artist}  [{player}]{'*' if prec else ''}"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
@@ -455,7 +455,7 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False):
                 particles.draw(stdscr, intensity="mid" if not cw else "low")
                 if minimal:
                     if cw: _draw_big_word(stdscr, cw, h//2)
-                    if paused: _draw_pause_overlay(stdscr, cw, fl)
+                    if paused: _draw_pause_overlay(stdscr)
                 else:
                     info = f"{'⏸' if paused else '♫'} {title}  ─  {artist} [{player}]"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
