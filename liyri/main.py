@@ -77,7 +77,7 @@ def _run_app(stdscr, args):
                 ret = display.run_static(stdscr, result["plain_lyrics"],
                                           track, speed=speed)
             else:
-                ret = _run_no_lyrics(stdscr, track)
+                ret = display.run_no_lyrics(stdscr, track)
         else:
             ret = "quit"
 
