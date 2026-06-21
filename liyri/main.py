@@ -1,12 +1,28 @@
 import argparse
 import curses
 import sys
+import time
+import threading
 
 from liyri import __version__
 from liyri import player as mpris
 from liyri import lyrics as lyrics_api
 from liyri import display
 from liyri import config
+
+
+def _prefetch_loop(player_filter):
+    last_title = None
+    while True:
+        time.sleep(2)
+        try:
+            track = mpris.get_now_playing(player_filter)
+            if track and track["title"] != last_title:
+                last_title = track["title"]
+                lyrics_api.fetch_lyrics(track["title"], track["artist"],
+                                        track["album"], track["duration_us"] / 1_000_000)
+        except Exception:
+            pass
 
 
 def _list_players():
@@ -41,6 +57,9 @@ def _run_app(stdscr, args):
     speed = args.speed
     no_sync = args.no_sync
     minimal = args.minimal
+
+    prefetcher = threading.Thread(target=_prefetch_loop, args=(player_filter,), daemon=True)
+    prefetcher.start()
 
     while True:
         track = mpris.get_now_playing(player_filter)
