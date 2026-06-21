@@ -55,7 +55,7 @@ def _run_app(stdscr, args):
     mode = args.mode
     player_filter = args.player
     speed = args.speed
-    no_sync = args.no_sync
+    no_sync = [args.no_sync]
     minimal = args.minimal
 
     prefetcher = threading.Thread(target=_prefetch_loop, args=(player_filter,), daemon=True)
@@ -73,45 +73,36 @@ def _run_app(stdscr, args):
 
         display.show_fetching(stdscr, title, artist)
         result = _fetch_for_track(track)
-        
+
         if result:
             track["high_precision"] = result.get("high_precision", False)
 
-        use_synced = result and result["synced_lyrics"] and not no_sync
+        use_synced = result and result["synced_lyrics"] and not no_sync[0]
         has_plain = result and result["plain_lyrics"]
 
         if mode == "focus":
             if use_synced:
                 ret = display.run_focus(stdscr, result["synced_lyrics"],
-                                        track, minimal=minimal)
+                                        track, minimal=minimal, no_sync=no_sync)
             elif has_plain:
                 ret = display.run_focus_plain(stdscr, result["plain_lyrics"],
-                                              track, speed=speed, minimal=minimal)
+                                              track, speed=speed, minimal=minimal, no_sync=no_sync)
             else:
                 ret = display.run_no_lyrics(stdscr, track)
         elif mode == "scroll":
             if use_synced:
-                ret = display.run_synced(stdscr, result["synced_lyrics"], track)
+                ret = display.run_synced(stdscr, result["synced_lyrics"], track, no_sync=no_sync)
             elif has_plain:
                 ret = display.run_static(stdscr, result["plain_lyrics"],
-                                          track, speed=speed)
+                                          track, speed=speed, no_sync=no_sync)
             else:
                 ret = display.run_no_lyrics(stdscr, track)
         else:
             ret = "quit"
 
-        if ret == "quit":
+        if ret in ("quit", None):
             return
-        elif ret == "song_changed":
-            continue
-        elif ret == "player_closed":
-            continue
-        elif ret == "stopped":
-            continue
-        elif ret == "finished":
-            continue
-        else:
-            return
+        continue
 
 
 def main():

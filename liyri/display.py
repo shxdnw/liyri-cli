@@ -324,7 +324,7 @@ def _check_song_changed(player_filter, title):
         return t and t["title"] != title
     except: return False
 
-def run_focus(stdscr, synced, track_info, minimal=False):
+def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
@@ -345,6 +345,7 @@ def run_focus(stdscr, synced, track_info, minimal=False):
         if key in (ord("q"), ord("Q"), 27): return "quit"
         if key == ord("m"): minimal = not minimal; force_redraw = True
         if key == ord("p"): particles.enabled = not particles.enabled; force_redraw = True
+        if key == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
         if key == curses.KEY_RESIZE: force_redraw = True; stdscr.clear()
         
         tracker.sync()
@@ -400,14 +401,14 @@ def run_focus(stdscr, synced, track_info, minimal=False):
                                     _safe_addstr(stdscr, cy, hx, syl[cur_w_idx]["text"], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
                     if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
                     if h > 4:
-                        leg = "q quit  m minimal  p particles"
+                        leg = "q quit  m minimal  p particles  s sync"
                         _safe_addstr(stdscr, h-1, _center_x(stdscr, leg), leg, curses.color_pair(CP_DIM)|curses.A_DIM)
                 stdscr.refresh()
             except: pass
         last_line_idx, last_word_idx = cur_l_idx, cur_w_idx
         time.sleep(0.016)
 
-def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False):
+def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
@@ -434,6 +435,7 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False):
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("m"): minimal = not minimal; force = True
         if k == ord("p"): particles.enabled = not particles.enabled; force = True
+        if k == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
         if k == curses.KEY_RESIZE: force = True; stdscr.clear()
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
@@ -473,13 +475,13 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False):
                                 b = " ".join(ws[:wil])
                                 _safe_addstr(stdscr, cy, cx + len(b) + (1 if b else 0), ws[wil], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
                     if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
-                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  p particles"), "q quit  m minimal  p particles", curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  p particles  s sync"), "q quit  m minimal  p particles  s sync", curses.color_pair(CP_DIM)|curses.A_DIM)
                 stdscr.refresh()
             except: pass
         time.sleep(0.016)
     return "finished"
 
-def run_synced(stdscr, synced, track_info):
+def run_synced(stdscr, synced, track_info, no_sync=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
@@ -496,6 +498,7 @@ def run_synced(stdscr, synced, track_info):
         except: k = -1
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
+        if k == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
         if k == curses.KEY_RESIZE: stdscr.clear()
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
@@ -551,7 +554,7 @@ def run_waiting(stdscr, player_filter):
         _safe_addstr(stdscr, h//2, _center_x(stdscr, m), m, curses.color_pair(CP_DIM))
         stdscr.refresh()
 
-def run_static(stdscr, lines, track_info, speed=1.0):
+def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None):
     curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
     dur = track_info["duration_us"] / 1_000_000
@@ -564,6 +567,7 @@ def run_static(stdscr, lines, track_info, speed=1.0):
         except: k = -1
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
+        if k == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
         tracker.sync(); pos, paused = tracker.get_pos(), tracker.last_status == "Paused"
         now = time.monotonic()
         if now - last_ui > 1.0:
