@@ -4,6 +4,7 @@ import json
 import hashlib
 import requests
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from thefuzz import fuzz
 
 LRCLIB_BASE = "https://lrclib.net"
@@ -60,19 +61,27 @@ def fetch_lyrics(title, artist, album=None, duration_s=None):
     return result
 
 def _fetch_lyrics_internal(title, artist, album=None, duration_s=None):
-    res = _try_exact_match(title, artist, album, duration_s)
-    if res: return res
+    pool = ThreadPoolExecutor(max_workers=3)
+    try:
+        futures = {
+            pool.submit(_try_exact_match, title, artist, album, duration_s): "exact",
+            pool.submit(_try_search, title, artist): "search",
+        }
+        clean_title = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip()
+        if clean_title != title:
+            futures[pool.submit(_try_search, clean_title, artist)] = "stripped"
 
-    res = _try_search(title, artist)
-    if res: return res
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result:
+                    return result
+            except Exception:
+                pass
+    finally:
+        pool.shutdown(wait=False)
 
-    clean_title = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip()
-    if clean_title != title:
-        res = _try_search(clean_title, artist)
-        if res: return res
-
-    res = _fetch_netease_lyrics(title, artist)
-    return res
+    return _fetch_netease_lyrics(title, artist)
 
 def _try_exact_match(title, artist, album=None, duration_s=None):
     params = {"track_name": title, "artist_name": artist}
