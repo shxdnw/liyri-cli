@@ -8,14 +8,17 @@ USER_AGENT = "liyri-cli/1.2.0"
 TIMEOUT = 5
 
 _LYRICS_CACHE = {}
+_CACHE_MAX = 200
 
 def fetch_lyrics(title, artist, album=None, duration_s=None):
-    cache_key = (artist.lower(), title.lower())
+    cache_key = (artist.lower(), title.lower(), (album or "").lower())
     if cache_key in _LYRICS_CACHE:
         return _LYRICS_CACHE[cache_key]
 
     result = _fetch_lyrics_internal(title, artist, album, duration_s)
     if result:
+        if len(_LYRICS_CACHE) >= _CACHE_MAX:
+            _LYRICS_CACHE.pop(next(iter(_LYRICS_CACHE)))
         _LYRICS_CACHE[cache_key] = result
     return result
 
