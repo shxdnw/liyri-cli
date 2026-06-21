@@ -553,6 +553,7 @@ def run_static(stdscr, lines, track_info, speed=1.0):
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
     dur = track_info["duration_us"] / 1_000_000
     tracker = PlayerTracker(bus); tracker.sync(force=True)
+    last_ui = time.monotonic()
     h_st, w_st = stdscr.getmaxyx()
     particles = ParticleEngine(h_st, w_st)
     while True:
@@ -561,7 +562,10 @@ def run_static(stdscr, lines, track_info, speed=1.0):
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
         tracker.sync(); pos, paused = tracker.get_pos(), tracker.last_status == "Paused"
-        if _check_song_changed(player, title): return "song_changed"
+        now = time.monotonic()
+        if now - last_ui > 1.0:
+            last_ui = now
+            if _check_song_changed(player, title): return "song_changed"
         idx = int((pos / dur) * len(lines)) if dur > 0 else 0
         idx = max(0, min(len(lines)-1, idx))
         try:
