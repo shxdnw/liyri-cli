@@ -443,6 +443,9 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False):
             if _check_song_changed(player, title): return "song_changed"
         if not paused:
             if now - last_adv > (wd if words[cur_wi][0] else wd*3): cur_wi += 1; last_adv = now; force = True
+            if dur > 0:
+                est_wi = int((pos / dur) * len(words))
+                if abs(est_wi - cur_wi) > 3: cur_wi = min(est_wi, len(words) - 1); last_adv = now; force = True
         if cur_wi >= len(words): break
         cw, fl, wil = words[cur_wi]
         if force or (now % 0.05 < 0.02):
