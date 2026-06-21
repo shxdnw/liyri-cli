@@ -1,5 +1,9 @@
+import os
 import re
+import json
+import hashlib
 import requests
+from pathlib import Path
 from thefuzz import fuzz
 
 LRCLIB_BASE = "https://lrclib.net"
@@ -9,17 +13,50 @@ TIMEOUT = 3
 
 _LYRICS_CACHE = {}
 _CACHE_MAX = 200
+_DISK_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "liyri"
+_DISK_CACHE_MAX = 20
+
+
+def _cache_path(cache_key):
+    slug = hashlib.sha256("|".join(cache_key).encode()).hexdigest()[:16]
+    return _DISK_CACHE_DIR / f"{slug}.json"
+
+
+def _load_disk_cache(cache_key):
+    path = _cache_path(cache_key)
+    if path.exists():
+        try:
+            return json.loads(path.read_text())
+        except: pass
+    return None
+
+
+def _save_disk_cache(cache_key, data):
+    try:
+        _DISK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path = _cache_path(cache_key)
+        path.write_text(json.dumps(data))
+        files = sorted(_DISK_CACHE_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in files[_DISK_CACHE_MAX:]:
+            old.unlink(missing_ok=True)
+    except: pass
 
 def fetch_lyrics(title, artist, album=None, duration_s=None):
     cache_key = (artist.lower(), title.lower(), (album or "").lower())
     if cache_key in _LYRICS_CACHE:
         return _LYRICS_CACHE[cache_key]
 
+    cached = _load_disk_cache(cache_key)
+    if cached:
+        _LYRICS_CACHE[cache_key] = cached
+        return cached
+
     result = _fetch_lyrics_internal(title, artist, album, duration_s)
     if result:
         if len(_LYRICS_CACHE) >= _CACHE_MAX:
             _LYRICS_CACHE.pop(next(iter(_LYRICS_CACHE)))
         _LYRICS_CACHE[cache_key] = result
+        _save_disk_cache(cache_key, result)
     return result
 
 def _fetch_lyrics_internal(title, artist, album=None, duration_s=None):
