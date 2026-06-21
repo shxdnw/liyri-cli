@@ -50,6 +50,25 @@ def get_player_info(bus_name):
     except dbus.exceptions.DBusException:
         return "Stopped", 0, {}
 
+def _build_track(bus_name, friendly_name, status, metadata):
+    title = str(metadata.get("xesam:title", ""))
+    if not title:
+        return None
+    artists = metadata.get("xesam:artist", [])
+    artist = str(artists[0]) if artists else ""
+    album = str(metadata.get("xesam:album", ""))
+    duration_us = int(metadata.get("mpris:length", 0))
+    return {
+        "bus_name": bus_name,
+        "player": friendly_name,
+        "title": title,
+        "artist": artist,
+        "album": album,
+        "duration_us": duration_us,
+        "status": status,
+    }
+
+
 def get_now_playing(player_name=None):
     global _last_playing_bus
     players = get_active_players()
@@ -67,92 +86,34 @@ def get_now_playing(player_name=None):
 
     for bus_name, friendly_name in players:
         try:
-            status = get_playback_status(bus_name)
+            status, _, metadata = get_player_info(bus_name)
         except dbus.exceptions.DBusException:
             continue
-
-        props = _get_player_properties(bus_name)
-        try:
-            metadata = props.Get(MPRIS_PLAYER_IFACE, "Metadata")
-        except dbus.exceptions.DBusException:
+        track = _build_track(bus_name, friendly_name, status, metadata)
+        if not track:
             continue
-
-        title = str(metadata.get("xesam:title", ""))
-        artists = metadata.get("xesam:artist", [])
-        if artists:
-            artist = str(artists[0])
-        else:
-            artist = ""
-        album = str(metadata.get("xesam:album", ""))
-        duration_us = int(metadata.get("mpris:length", 0))
-
-        if not title:
-            continue
-
         if status == "Playing":
             _last_playing_bus = bus_name
-            return {
-                "bus_name": bus_name,
-                "player": friendly_name,
-                "title": title,
-                "artist": artist,
-                "album": album,
-                "duration_us": duration_us,
-                "status": status,
-            }
+            return track
 
     if ENABLE_STICKY_PLAYER and _last_playing_bus:
         for bus_name, friendly_name in players:
             if bus_name == _last_playing_bus:
                 try:
-                    props = _get_player_properties(bus_name)
-                    metadata = props.Get(MPRIS_PLAYER_IFACE, "Metadata")
-                    title = str(metadata.get("xesam:title", ""))
-                    if title:
-                        artists = metadata.get("xesam:artist", [])
-                        artist = str(artists[0]) if artists else ""
-                        album = str(metadata.get("xesam:album", ""))
-                        duration_us = int(metadata.get("mpris:length", 0))
-                        try:
-                            status = get_playback_status(bus_name)
-                        except dbus.exceptions.DBusException:
-                            status = "Unknown"
-                        return {
-                            "bus_name": bus_name,
-                            "player": friendly_name,
-                            "title": title,
-                            "artist": artist,
-                            "album": album,
-                            "duration_us": duration_us,
-                            "status": status,
-                        }
+                    status, _, metadata = get_player_info(bus_name)
                 except dbus.exceptions.DBusException:
-                    pass
+                    continue
+                track = _build_track(bus_name, friendly_name, status, metadata)
+                if track:
+                    return track
 
     for bus_name, friendly_name in players:
         try:
-            props = _get_player_properties(bus_name)
-            metadata = props.Get(MPRIS_PLAYER_IFACE, "Metadata")
+            status, _, metadata = get_player_info(bus_name)
         except dbus.exceptions.DBusException:
             continue
-        title = str(metadata.get("xesam:title", ""))
-        if title:
-            artists = metadata.get("xesam:artist", [])
-            artist = str(artists[0]) if artists else ""
-            album = str(metadata.get("xesam:album", ""))
-            duration_us = int(metadata.get("mpris:length", 0))
-            try:
-                status = get_playback_status(bus_name)
-            except dbus.exceptions.DBusException:
-                status = "Unknown"
-            return {
-                "bus_name": bus_name,
-                "player": friendly_name,
-                "title": title,
-                "artist": artist,
-                "album": album,
-                "duration_us": duration_us,
-                "status": status,
-            }
+        track = _build_track(bus_name, friendly_name, status, metadata)
+        if track:
+            return track
 
     return None
