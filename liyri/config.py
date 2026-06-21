@@ -12,6 +12,11 @@ DEFAULT_CONFIG = {
     "sticky_player": True
 }
 
+_VALIDATORS = {
+    "mode": lambda v: v in ("focus", "scroll"),
+    "speed": lambda v: isinstance(v, (int, float)) and 0.1 <= v <= 10.0,
+}
+
 def get_config_path():
     config_home = os.environ.get("XDG_CONFIG_HOME")
     if not config_home:
@@ -39,6 +44,8 @@ def load_config():
             cfg = DEFAULT_CONFIG.copy()
             for k, v in user_config.items():
                 if k in cfg and type(v) == type(cfg[k]):
+                    if k in _VALIDATORS and not _VALIDATORS[k](v):
+                        continue
                     cfg[k] = v
             return cfg
     except Exception:
