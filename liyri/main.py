@@ -90,6 +90,7 @@ def _run_app(stdscr, args):
 
         if result:
             track["high_precision"] = result.get("high_precision", False)
+            track["cached"] = result.get("cached", False)
 
         use_synced = result and result["synced_lyrics"] and not no_sync[0]
         has_plain = result and result["plain_lyrics"]

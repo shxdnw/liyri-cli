@@ -49,6 +49,7 @@ def fetch_lyrics(title, artist, album=None, duration_s=None):
 
     cached = _load_disk_cache(cache_key)
     if cached:
+        cached["cached"] = True
         _LYRICS_CACHE[cache_key] = cached
         return cached
 
