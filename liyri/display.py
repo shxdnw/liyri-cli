@@ -7,6 +7,47 @@ import random
 
 from liyri import player as mpris
 
+_THEME = "default"
+
+THEMES = {
+    "default": {
+        "header": curses.COLOR_CYAN, "current": curses.COLOR_WHITE,
+        "near": curses.COLOR_CYAN, "far": curses.COLOR_BLUE, "dim": 240,
+        "accent": curses.COLOR_MAGENTA, "progress": curses.COLOR_GREEN,
+        "glow": curses.COLOR_YELLOW, "instrumental": curses.COLOR_BLUE,
+    },
+    "dracula": {
+        "header": curses.COLOR_MAGENTA, "current": curses.COLOR_WHITE,
+        "near": 213, "far": 99, "dim": 240,
+        "accent": curses.COLOR_CYAN, "progress": 84,
+        "glow": 228, "instrumental": 99,
+    },
+    "nord": {
+        "header": 109, "current": curses.COLOR_WHITE,
+        "near": 109, "far": 67, "dim": 243,
+        "accent": 140, "progress": 108,
+        "glow": 179, "instrumental": 67,
+    },
+    "solarized": {
+        "header": curses.COLOR_CYAN, "current": curses.COLOR_WHITE,
+        "near": 109, "far": 32, "dim": 242,
+        "accent": curses.COLOR_MAGENTA, "progress": 64,
+        "glow": 136, "instrumental": 32,
+    },
+    "monochrome": {
+        "header": curses.COLOR_WHITE, "current": curses.COLOR_WHITE,
+        "near": 250, "far": 244, "dim": 240,
+        "accent": 252, "progress": curses.COLOR_WHITE,
+        "glow": 254, "instrumental": 244,
+    },
+}
+
+
+def set_theme(name):
+    global _THEME
+    if name in THEMES:
+        _THEME = name
+
 
 CP_HEADER    = 1
 CP_CURRENT   = 2
@@ -21,21 +62,21 @@ CP_BIG_WORD  = 10
 CP_PAUSE     = 11
 
 def _init_colors():
-    """Set up colour pairs for the UI."""
     curses.start_color()
     curses.use_default_colors()
+    t = THEMES.get(_THEME, THEMES["default"])
     try:
-        curses.init_pair(CP_HEADER,       curses.COLOR_CYAN,    -1)
-        curses.init_pair(CP_CURRENT,      curses.COLOR_WHITE,   -1)
-        curses.init_pair(CP_NEAR,         curses.COLOR_CYAN,    -1)
-        curses.init_pair(CP_FAR,          curses.COLOR_BLUE,    -1)
-        curses.init_pair(CP_DIM,          240,                  -1)
-        curses.init_pair(CP_ACCENT,       curses.COLOR_MAGENTA, -1)
-        curses.init_pair(CP_PROGRESS,     curses.COLOR_GREEN,   -1)
-        curses.init_pair(CP_WORD_GLOW,    curses.COLOR_YELLOW,  -1)
-        curses.init_pair(CP_INSTRUMENTAL, curses.COLOR_BLUE,    -1)
-        curses.init_pair(CP_BIG_WORD,     curses.COLOR_WHITE,   -1)
-        curses.init_pair(CP_PAUSE,        curses.COLOR_YELLOW,  -1)
+        curses.init_pair(CP_HEADER,       t["header"],       -1)
+        curses.init_pair(CP_CURRENT,      t["current"],      -1)
+        curses.init_pair(CP_NEAR,         t["near"],         -1)
+        curses.init_pair(CP_FAR,          t["far"],          -1)
+        curses.init_pair(CP_DIM,          t["dim"],          -1)
+        curses.init_pair(CP_ACCENT,       t["accent"],       -1)
+        curses.init_pair(CP_PROGRESS,     t["progress"],     -1)
+        curses.init_pair(CP_WORD_GLOW,    t["glow"],         -1)
+        curses.init_pair(CP_INSTRUMENTAL, t["instrumental"], -1)
+        curses.init_pair(CP_BIG_WORD,     t["current"],      -1)
+        curses.init_pair(CP_PAUSE,        t["glow"],         -1)
     except curses.error:
         curses.init_pair(CP_HEADER,       curses.COLOR_CYAN,    -1)
         curses.init_pair(CP_CURRENT,      curses.COLOR_WHITE,   -1)

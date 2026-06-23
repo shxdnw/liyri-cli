@@ -9,12 +9,14 @@ DEFAULT_CONFIG = {
     "speed": 1.0,
     "no_sync": False,
     "strip_keywords": True,
-    "sticky_player": True
+    "sticky_player": True,
+    "theme": "default",
 }
 
 _VALIDATORS = {
     "mode": lambda v: v in ("focus", "scroll"),
     "speed": lambda v: isinstance(v, (int, float)) and 0.1 <= v <= 10.0,
+    "theme": lambda v: v in ("default", "dracula", "nord", "solarized", "monochrome"),
 }
 
 def get_config_path():

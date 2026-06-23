@@ -165,6 +165,7 @@ def main():
         curses.wrapper(lambda stdscr: _run_search(stdscr, title, artist))
         sys.exit(0)
 
+    display.set_theme(cfg.get("theme", "default"))
     mpris.ENABLE_STICKY_PLAYER = cfg.get("sticky_player", True)
     lyrics_api.ENABLE_KEYWORD_STRIPPING = cfg.get("strip_keywords", True)
 
