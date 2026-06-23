@@ -722,7 +722,7 @@ def run_search_viewer(stdscr, result, title, artist):
 
 def run_no_lyrics(stdscr, track_info):
     curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
-    bus, title, artist = track_info["bus_name"], track_info["title"], track_info["artist"]
+    bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
     dur = track_info["duration_us"] / 1_000_000
     last_check = time.monotonic()
     h_n, w_n = stdscr.getmaxyx()
