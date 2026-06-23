@@ -340,9 +340,10 @@ def _draw_pause_overlay(s):
     _safe_addstr(s, py, w - len(p) - 2, p, curses.color_pair(CP_PAUSE) | curses.A_DIM)
 
 class PlayerTracker:
-    def __init__(self, bus):
+    def __init__(self, bus, offset=None):
         self.bus, self.last_pos, self.last_status, self.last_update = bus, 0.0, "Stopped", time.monotonic()
         self.poll_interval, self.last_poll = 0.2, 0.0
+        self.offset = offset
     def sync(self, force=False):
         now = time.monotonic()
         if force or (now - self.last_poll > self.poll_interval):
@@ -357,8 +358,9 @@ class PlayerTracker:
             return True
         return False
     def get_pos(self):
-        if self.last_status != "Playing": return self.last_pos
-        return self.last_pos + (time.monotonic() - self.last_update)
+        off = self.offset[0] if self.offset else 0.0
+        if self.last_status != "Playing": return self.last_pos + off
+        return self.last_pos + (time.monotonic() - self.last_update) + off
 
 def _check_song_changed(player_filter, title):
     try:
@@ -366,14 +368,14 @@ def _check_song_changed(player_filter, title):
         return t and t["title"] != title
     except: return False
 
-def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None):
+def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
     _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
     dur, prec = track_info["duration_us"] / 1_000_000, track_info.get("high_precision", False)
-    tracker = PlayerTracker(bus)
+    tracker = PlayerTracker(bus, offset=offset)
     tracker.sync(force=True)
     last_word_idx, last_line_idx, last_ui_check = -1, -1, time.monotonic()
     h_m, w_m = stdscr.getmaxyx()
@@ -388,6 +390,9 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None):
         if key == ord("m"): minimal = not minimal; force_redraw = True
         if key == ord("p"): particles.enabled = not particles.enabled; force_redraw = True
         if key == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
+        if key == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5; force_redraw = True
+        if key == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5; force_redraw = True
+        if key == ord("0") and offset is not None: offset[0] = 0.0; force_redraw = True
         if key == curses.KEY_RESIZE: force_redraw = True; stdscr.clear()
         
         tracker.sync()
@@ -427,7 +432,8 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None):
                     if disp_w: _draw_big_word(stdscr, disp_w, h // 2, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
                     if paused: _draw_pause_overlay(stdscr)
                 else:
-                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist}  [{player}]{'*' if prec else ''}{' 📀' if track_info.get('cached') else ''}"
+                    off_tag = f"  [{offset[0]:+.1f}s]" if offset and offset[0] != 0 else ""
+                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist}  [{player}]{'*' if prec else ''}{' 📀' if track_info.get('cached') else ''}{off_tag}"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
                     _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
                     if disp_w:
@@ -443,14 +449,14 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None):
                                     _safe_addstr(stdscr, cy, hx, syl[cur_w_idx]["text"], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
                     if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
                     if h > 4:
-                        leg = "q quit  m minimal  p particles  s sync"
+                        leg = "q quit  m minimal  p particles  s sync  ←→ offset  0 reset"
                         _safe_addstr(stdscr, h-1, _center_x(stdscr, leg), leg, curses.color_pair(CP_DIM)|curses.A_DIM)
                 stdscr.refresh()
             except: pass
         last_line_idx, last_word_idx = cur_l_idx, cur_w_idx
         time.sleep(0.016)
 
-def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync=None):
+def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync=None, offset=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
@@ -465,7 +471,7 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
             for i, w in enumerate(ws): words.append((w, l, i))
     if not words: return "quit"
     wd = max(0.08, min(2.0/speed, (dur*0.8)/len(words))) if dur > 0 else 0.25/speed
-    tracker = PlayerTracker(bus)
+    tracker = PlayerTracker(bus, offset=offset)
     tracker.sync(force=True)
     cur_wi, last_adv, last_ui = 0, time.monotonic(), time.monotonic()
     h_p, w_p = stdscr.getmaxyx()
@@ -478,6 +484,9 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
         if k == ord("m"): minimal = not minimal; force = True
         if k == ord("p"): particles.enabled = not particles.enabled; force = True
         if k == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
+        if k == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5; force = True
+        if k == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5; force = True
+        if k == ord("0") and offset is not None: offset[0] = 0.0; force = True
         if k == curses.KEY_RESIZE: force = True; stdscr.clear()
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
@@ -500,11 +509,12 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
                 if h < 5 or w < 10: continue
                 particles.update(h, w)
                 particles.draw(stdscr, intensity="mid" if not cw else "low")
+                off_tag = f"  [{offset[0]:+.1f}s]" if offset and offset[0] != 0 else ""
                 if minimal:
                     if cw: _draw_big_word(stdscr, cw, h//2)
                     if paused: _draw_pause_overlay(stdscr)
                 else:
-                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist} [{player}]{' 📀' if track_info.get('cached') else ''}"
+                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist} [{player}]{' 📀' if track_info.get('cached') else ''}{off_tag}"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
                     _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
                     if cw:
@@ -517,20 +527,20 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
                                 b = " ".join(ws[:wil])
                                 _safe_addstr(stdscr, cy, cx + len(b) + (1 if b else 0), ws[wil], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
                     if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
-                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  p particles  s sync"), "q quit  m minimal  p particles  s sync", curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  p particles  s sync  ←→ offset"), "q quit  m minimal  p particles  s sync  ←→ offset", curses.color_pair(CP_DIM)|curses.A_DIM)
                 stdscr.refresh()
             except: pass
         time.sleep(0.016)
     return "finished"
 
-def run_synced(stdscr, synced, track_info, no_sync=None):
+def run_synced(stdscr, synced, track_info, no_sync=None, offset=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
     _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
     dur, prec = track_info["duration_us"] / 1_000_000, track_info.get("high_precision", False)
-    tracker = PlayerTracker(bus)
+    tracker = PlayerTracker(bus, offset=offset)
     tracker.sync(force=True)
     cur_sc, last_ui = 0.0, time.monotonic()
     h_s, w_s = stdscr.getmaxyx()
@@ -541,6 +551,9 @@ def run_synced(stdscr, synced, track_info, no_sync=None):
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
         if k == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
+        if k == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5
+        if k == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5
+        if k == ord("0") and offset is not None: offset[0] = 0.0
         if k == curses.KEY_RESIZE: stdscr.clear()
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
@@ -596,11 +609,11 @@ def run_waiting(stdscr, player_filter):
         _safe_addstr(stdscr, h//2, _center_x(stdscr, m), m, curses.color_pair(CP_DIM))
         stdscr.refresh()
 
-def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None):
+def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None):
     curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
     dur = track_info["duration_us"] / 1_000_000
-    tracker = PlayerTracker(bus); tracker.sync(force=True)
+    tracker = PlayerTracker(bus, offset=offset); tracker.sync(force=True)
     last_ui = time.monotonic()
     h_st, w_st = stdscr.getmaxyx()
     particles = ParticleEngine(h_st, w_st)
@@ -610,6 +623,9 @@ def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None):
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
         if k == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
+        if k == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5
+        if k == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5
+        if k == ord("0") and offset is not None: offset[0] = 0.0
         tracker.sync(); pos, paused = tracker.get_pos(), tracker.last_status == "Paused"
         now = time.monotonic()
         if now - last_ui > 1.0:

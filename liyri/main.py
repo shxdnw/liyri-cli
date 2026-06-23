@@ -70,6 +70,7 @@ def _run_app(stdscr, args):
     player_filter = args.player
     speed = args.speed
     no_sync = [args.no_sync]
+    offset = [0.0]
     minimal = args.minimal
 
     prefetcher = threading.Thread(target=_prefetch_loop, args=(player_filter,), daemon=True)
@@ -98,18 +99,18 @@ def _run_app(stdscr, args):
         if mode == "focus":
             if use_synced:
                 ret = display.run_focus(stdscr, result["synced_lyrics"],
-                                        track, minimal=minimal, no_sync=no_sync)
+                                        track, minimal=minimal, no_sync=no_sync, offset=offset)
             elif has_plain:
                 ret = display.run_focus_plain(stdscr, result["plain_lyrics"],
-                                              track, speed=speed, minimal=minimal, no_sync=no_sync)
+                                              track, speed=speed, minimal=minimal, no_sync=no_sync, offset=offset)
             else:
                 ret = display.run_no_lyrics(stdscr, track)
         elif mode == "scroll":
             if use_synced:
-                ret = display.run_synced(stdscr, result["synced_lyrics"], track, no_sync=no_sync)
+                ret = display.run_synced(stdscr, result["synced_lyrics"], track, no_sync=no_sync, offset=offset)
             elif has_plain:
                 ret = display.run_static(stdscr, result["plain_lyrics"],
-                                          track, speed=speed, no_sync=no_sync)
+                                          track, speed=speed, no_sync=no_sync, offset=offset)
             else:
                 ret = display.run_no_lyrics(stdscr, track)
         else:
