@@ -597,6 +597,41 @@ def show_fetching(stdscr, title, artist):
     _safe_addstr(stdscr, h//2, _center_x(stdscr, m), m, curses.color_pair(CP_DIM))
     stdscr.refresh()
 
+def run_search_viewer(stdscr, result, title, artist):
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+    stdscr.timeout(100)
+    _init_colors()
+    synced = result.get("synced_lyrics") or []
+    plain = result.get("plain_lyrics") or []
+    lines = [l["text"] for l in synced] if synced else plain
+    if not lines:
+        return
+    top = 0
+    while True:
+        k = stdscr.getch()
+        if k in (ord("q"), ord("Q"), 27):
+            return
+        if k in (curses.KEY_UP, ord("k")):
+            top = max(0, top - 1)
+        if k in (curses.KEY_DOWN, ord("j")):
+            top = min(len(lines) - 1, top + 1)
+        stdscr.erase()
+        h, w = stdscr.getmaxyx()
+        _safe_addstr(stdscr, 0, _center_x(stdscr, f"{title}  —  {artist}"),
+                     f"{title}  —  {artist}", curses.color_pair(CP_HEADER) | curses.A_BOLD)
+        _safe_addstr(stdscr, 1, 1, "─" * (w - 2), curses.color_pair(CP_DIM) | curses.A_DIM)
+        visible = h - 4
+        for i in range(top, min(top + visible, len(lines))):
+            dy = 2 + i - top
+            attr = curses.color_pair(CP_CURRENT) if i == top + visible // 2 else curses.color_pair(CP_DIM)
+            _safe_addstr(stdscr, dy, _center_x(stdscr, lines[i]), lines[i], attr)
+        legend = "↑↓/jk scroll  q quit"
+        _safe_addstr(stdscr, h - 1, _center_x(stdscr, legend), legend, curses.color_pair(CP_DIM) | curses.A_DIM)
+        stdscr.refresh()
+        time.sleep(0.033)
+
+
 def run_no_lyrics(stdscr, track_info):
     curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
     bus, title, artist = track_info["bus_name"], track_info["title"], track_info["artist"]

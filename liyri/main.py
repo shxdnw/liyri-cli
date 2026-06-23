@@ -51,6 +51,20 @@ def _fetch_for_track(track):
     return lyrics_api.fetch_lyrics(title, artist, album, duration_s)
 
 
+def _run_search(stdscr, title, artist):
+    display.show_fetching(stdscr, title, artist)
+    result = lyrics_api.fetch_lyrics(title, artist)
+    if result and (result["synced_lyrics"] or result["plain_lyrics"]):
+        display.run_search_viewer(stdscr, result, title, artist)
+    else:
+        stdscr.clear()
+        h, w = stdscr.getmaxyx()
+        msg = f"no lyrics found for \"{title}\""
+        stdscr.addstr(h // 2, max(0, (w - len(msg)) // 2), msg)
+        stdscr.addstr(h // 2 + 1, max(0, (w - len("press any key to exit")) // 2), "press any key to exit")
+        stdscr.getch()
+
+
 def _run_app(stdscr, args):
     mode = args.mode
     player_filter = args.player
@@ -127,6 +141,8 @@ def main():
                         help="Animation speed multiplier (default: 1.0)")
     parser.add_argument("--no-sync", action="store_true",
                         help="Force plain lyrics even if synced available")
+    parser.add_argument("--search", type=str, metavar="\"ARTIST - TITLE\"",
+                        help="Search lyrics for a song without playing it")
     parser.add_argument("--list-players", action="store_true",
                         help="List detected MPRIS players and exit")
     parser.add_argument("--scroll", action="store_true",
@@ -142,6 +158,13 @@ def main():
         _list_players()
         sys.exit(0)
 
+    if args.search:
+        parts = args.search.split(" - ", 1)
+        artist = parts[0].strip() if len(parts) == 2 else ""
+        title = parts[1].strip() if len(parts) == 2 else args.search.strip()
+        curses.wrapper(lambda stdscr: _run_search(stdscr, title, artist))
+        sys.exit(0)
+
     mpris.ENABLE_STICKY_PLAYER = cfg.get("sticky_player", True)
     lyrics_api.ENABLE_KEYWORD_STRIPPING = cfg.get("strip_keywords", True)
 
@@ -149,7 +172,7 @@ def main():
     args.speed = args.speed if args.speed != 1.0 else cfg.get("speed", 1.0)
     args.no_sync = args.no_sync or cfg.get("no_sync", False)
     args.minimal = args.minimal or cfg.get("minimal", False)
-    
+
     config_mode = cfg.get("mode", "focus")
     args.mode = "scroll" if (args.scroll or config_mode == "scroll") else "focus"
 
