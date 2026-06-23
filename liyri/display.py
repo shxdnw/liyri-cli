@@ -1,9 +1,11 @@
 """Curses-based animated lyrics display."""
 
+import os
 import curses
 import time
 import unicodedata
 import random
+from pathlib import Path
 
 from liyri import player as mpris
 
@@ -264,6 +266,20 @@ class ParticleEngine:
         if intensity == "low": attr |= curses.A_DIM
         for p in self.particles: _safe_addstr(stdscr, int(p.y), int(p.x), p.char, attr)
 
+_save_feedback = 0.0
+
+def _save_lyric_line(title, artist, line):
+    global _save_feedback
+    try:
+        p = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "liyri" / "saved.txt"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "a") as f:
+            f.write(f'{artist} — {title}: "{line}"\n')
+        _save_feedback = time.monotonic()
+    except Exception:
+        pass
+
+
 def _safe_addstr(win, y, x, text, attr=0):
     try:
         h, w = win.getmaxyx()
@@ -393,6 +409,7 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=No
         if key == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5; force_redraw = True
         if key == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5; force_redraw = True
         if key == ord("0") and offset is not None: offset[0] = 0.0; force_redraw = True
+        if key in (ord("\n"), curses.KEY_ENTER): _save_lyric_line(title, artist, disp_l); force_redraw = True
         if key == curses.KEY_RESIZE: force_redraw = True; stdscr.clear()
         
         tracker.sync()
@@ -451,6 +468,8 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=No
                     if h > 4:
                         leg = "q quit  m minimal  p particles  s sync  ←→ offset  0 reset"
                         _safe_addstr(stdscr, h-1, _center_x(stdscr, leg), leg, curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if time.monotonic() - _save_feedback < 1.5:
+                        _safe_addstr(stdscr, 0, w - 8, "saved!", curses.color_pair(CP_PROGRESS) | curses.A_BOLD)
                 stdscr.refresh()
             except: pass
         last_line_idx, last_word_idx = cur_l_idx, cur_w_idx
@@ -487,6 +506,8 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
         if k == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5; force = True
         if k == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5; force = True
         if k == ord("0") and offset is not None: offset[0] = 0.0; force = True
+        if k in (ord("\n"), curses.KEY_ENTER) and words and cur_wi < len(words):
+            _save_lyric_line(title, artist, words[cur_wi][1]); force = True
         if k == curses.KEY_RESIZE: force = True; stdscr.clear()
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
@@ -527,7 +548,9 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
                                 b = " ".join(ws[:wil])
                                 _safe_addstr(stdscr, cy, cx + len(b) + (1 if b else 0), ws[wil], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
                     if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
-                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  p particles  s sync  ←→ offset"), "q quit  m minimal  p particles  s sync  ←→ offset", curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  p particles  s sync  ←→ offset  enter save"), "q quit  m minimal  p particles  s sync  ←→ offset  enter save", curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if time.monotonic() - _save_feedback < 1.5:
+                        _safe_addstr(stdscr, 0, w - 8, "saved!", curses.color_pair(CP_PROGRESS) | curses.A_BOLD)
                 stdscr.refresh()
             except: pass
         time.sleep(0.016)
@@ -554,6 +577,9 @@ def run_synced(stdscr, synced, track_info, no_sync=None, offset=None):
         if k == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5
         if k == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5
         if k == ord("0") and offset is not None: offset[0] = 0.0
+        if k in (ord("\n"), curses.KEY_ENTER):
+            cur_idx_txt = next((synced[i]["text"] for i in range(len(synced)-1, -1, -1) if pos >= synced[i]["time"]), "")
+            if cur_idx_txt: _save_lyric_line(title, artist, cur_idx_txt)
         if k == curses.KEY_RESIZE: stdscr.clear()
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
@@ -626,6 +652,10 @@ def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None):
         if k == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5
         if k == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5
         if k == ord("0") and offset is not None: offset[0] = 0.0
+        if k in (ord("\n"), curses.KEY_ENTER):
+            s_idx = int((pos / dur) * len(lines)) if dur > 0 else 0
+            s_idx = max(0, min(len(lines)-1, s_idx))
+            if 0 <= s_idx < len(lines): _save_lyric_line(title, artist, lines[s_idx])
         tracker.sync(); pos, paused = tracker.get_pos(), tracker.last_status == "Paused"
         now = time.monotonic()
         if now - last_ui > 1.0:
