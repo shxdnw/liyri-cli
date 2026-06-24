@@ -5,7 +5,7 @@ import hashlib
 import requests
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from thefuzz import fuzz
+from difflib import SequenceMatcher
 
 LRCLIB_BASE = "https://lrclib.net"
 NETEASE_BASE = "http://music.163.com/api"
@@ -97,9 +97,9 @@ def _try_exact_match(title, artist, album=None, duration_s=None):
     return None
 
 def _calculate_match_score(target_title, target_artist, result_title, result_artist):
-    target = f"{target_artist} {target_title}".lower()
-    result = f"{result_artist} {result_title}".lower()
-    return fuzz.token_set_ratio(target, result)
+    target = " ".join(sorted(f"{target_artist} {target_title}".lower().split()))
+    result = " ".join(sorted(f"{result_artist} {result_title}".lower().split()))
+    return int(SequenceMatcher(None, target, result).ratio() * 100)
 
 def _try_search(title, artist):
     try:
