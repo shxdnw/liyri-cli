@@ -69,6 +69,51 @@ def _build_track(bus_name, friendly_name, status, metadata):
     }
 
 
+def player_next(bus_name):
+    bus = _get_session_bus()
+    try:
+        proxy = bus.get_object(bus_name, "/org/mpris/MediaPlayer2")
+        dbus.Interface(proxy, MPRIS_PLAYER_IFACE).Next()
+    except dbus.exceptions.DBusException:
+        pass
+
+def player_previous(bus_name):
+    bus = _get_session_bus()
+    try:
+        proxy = bus.get_object(bus_name, "/org/mpris/MediaPlayer2")
+        dbus.Interface(proxy, MPRIS_PLAYER_IFACE).Previous()
+    except dbus.exceptions.DBusException:
+        pass
+
+def player_seek(bus_name, offset_us):
+    bus = _get_session_bus()
+    try:
+        proxy = bus.get_object(bus_name, "/org/mpris/MediaPlayer2")
+        dbus.Interface(proxy, MPRIS_PLAYER_IFACE).Seek(dbus.Int64(offset_us))
+    except dbus.exceptions.DBusException:
+        pass
+
+def get_shuffle(bus_name):
+    try:
+        props = _get_player_properties(bus_name)
+        return bool(props.Get(MPRIS_PLAYER_IFACE, "Shuffle"))
+    except dbus.exceptions.DBusException:
+        return None
+
+def get_loop_status(bus_name):
+    try:
+        props = _get_player_properties(bus_name)
+        return str(props.Get(MPRIS_PLAYER_IFACE, "LoopStatus"))
+    except dbus.exceptions.DBusException:
+        return None
+
+def get_volume(bus_name):
+    try:
+        props = _get_player_properties(bus_name)
+        return float(props.Get(MPRIS_PLAYER_IFACE, "Volume"))
+    except dbus.exceptions.DBusException:
+        return None
+
 def get_now_playing(player_name=None):
     global _last_playing_bus
     players = get_active_players()
