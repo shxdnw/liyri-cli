@@ -66,7 +66,7 @@ def _run_search(stdscr, title, artist):
 
 
 def _run_app(stdscr, args):
-    mode = args.mode
+    mode = [args.mode]
     player_filter = args.player
     speed = args.speed
     no_sync = [args.no_sync]
@@ -96,21 +96,21 @@ def _run_app(stdscr, args):
         use_synced = result and result["synced_lyrics"] and not no_sync[0]
         has_plain = result and result["plain_lyrics"]
 
-        if mode == "focus":
+        if mode[0] == "focus":
             if use_synced:
                 ret = display.run_focus(stdscr, result["synced_lyrics"],
-                                        track, minimal=minimal, no_sync=no_sync, offset=offset)
+                                        track, minimal=minimal, no_sync=no_sync, offset=offset, mode=mode)
             elif has_plain:
                 ret = display.run_focus_plain(stdscr, result["plain_lyrics"],
-                                              track, speed=speed, minimal=minimal, no_sync=no_sync, offset=offset)
+                                              track, speed=speed, minimal=minimal, no_sync=no_sync, offset=offset, mode=mode)
             else:
                 ret = display.run_no_lyrics(stdscr, track)
-        elif mode == "scroll":
+        elif mode[0] == "scroll":
             if use_synced:
-                ret = display.run_synced(stdscr, result["synced_lyrics"], track, no_sync=no_sync, offset=offset)
+                ret = display.run_synced(stdscr, result["synced_lyrics"], track, no_sync=no_sync, offset=offset, mode=mode)
             elif has_plain:
                 ret = display.run_static(stdscr, result["plain_lyrics"],
-                                          track, speed=speed, no_sync=no_sync, offset=offset)
+                                          track, speed=speed, no_sync=no_sync, offset=offset, mode=mode)
             else:
                 ret = display.run_no_lyrics(stdscr, track)
         else:
