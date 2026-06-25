@@ -32,6 +32,9 @@ def _list_players():
         print("  Make sure a player is running (Spotify, VLC, browser, etc).")
         return
 
+    active = mpris.get_now_playing("")
+    active_player = active["player"] if active else None
+
     print(f"\n  ♫  Detected MPRIS players ({len(players)}):\n")
     for bus_name, friendly in players:
         try:
@@ -39,7 +42,8 @@ def _list_players():
         except Exception:
             status = "?"
         icon = {"Playing": "▶", "Paused": "⏸", "Stopped": "⏹"}.get(status, "?")
-        print(f"    {icon}  {friendly}  ({status})")
+        marker = " ★" if friendly == active_player else "   "
+        print(f"    {icon} {marker} {friendly}  ({status})")
     print()
 
 
