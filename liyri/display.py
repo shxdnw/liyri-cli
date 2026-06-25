@@ -295,6 +295,28 @@ def _format_time(s):
     if s < 0: s = 0
     return f"{int(s)//60:02d}:{int(s)%60:02d}"
 
+def _player_status_tags(bus_name):
+    """Build compact status tags for shuffle, loop, and volume."""
+    tags = ""
+    try:
+        s = mpris.get_shuffle(bus_name)
+        if s: tags += " 🔀"
+    except: pass
+    try:
+        lp = mpris.get_loop_status(bus_name)
+        if lp == "Track": tags += " 🔂"
+        elif lp == "Playlist": tags += " 🔁"
+    except: pass
+    try:
+        v = mpris.get_volume(bus_name)
+        if v is not None:
+            pct = int(v * 100)
+            if pct > 70: tags += f" 🔊{pct}%"
+            elif pct > 0: tags += f" 🔉{pct}%"
+            else: tags += " 🔇"
+    except: pass
+    return tags
+
 def _draw_progress_bar(win, y, pos, dur, paused=False):
     try: h, w = win.getmaxyx()
     except: return
@@ -352,7 +374,7 @@ def _draw_pause_overlay(s):
     try: h, w = s.getmaxyx()
     except: return
     p = "⏸ paused"
-    py = 2 if h > 8 else 0
+    py = max(1, h // 5)
     _safe_addstr(s, py, w - len(p) - 2, p, curses.color_pair(CP_PAUSE) | curses.A_DIM)
 
 class PlayerTracker:
@@ -378,13 +400,23 @@ class PlayerTracker:
         if self.last_status != "Playing": return self.last_pos + off
         return self.last_pos + (time.monotonic() - self.last_update) + off
 
-def _check_song_changed(player_filter, title):
+def _check_song_changed(bus_name, player_name, title):
+    """Check if the tracked player's song changed, or if another player took over."""
     try:
-        t = mpris.get_now_playing(player_filter)
-        return t and t["title"] != title
-    except: return False
+        status, _, metadata = mpris.get_player_info(bus_name)
+        if status == "Playing":
+            new_title = str(metadata.get("xesam:title", ""))
+            return bool(new_title and new_title != title)
+    except:
+        pass
+    # Fallback: another player might be active now
+    try:
+        t = mpris.get_now_playing(player_name)
+        return bool(t and t["title"] != title)
+    except:
+        return False
 
-def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=None):
+def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=None, mode=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
@@ -410,14 +442,19 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=No
         if key == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5; force_redraw = True
         if key == ord("0") and offset is not None: offset[0] = 0.0; force_redraw = True
         if key in (ord("\n"), curses.KEY_ENTER): _save_lyric_line(title, artist, disp_l); force_redraw = True
+        if key == ord("t") and mode is not None: mode[0] = "scroll" if mode[0] == "focus" else "focus"; return "retry"
+        if key == ord("n"): mpris.player_next(bus); return "retry"
+        if key == ord("b"): mpris.player_previous(bus); return "retry"
+        if key == ord("]"): mpris.player_seek(bus, 5000000); force_redraw = True
+        if key == ord("["): mpris.player_seek(bus, -5000000); force_redraw = True
         if key == curses.KEY_RESIZE: force_redraw = True; stdscr.clear()
-        
+
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
         pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
         if now - last_ui_check > 1.0:
             last_ui_check = now
-            if _check_song_changed(player, title): return "song_changed"
+            if _check_song_changed(bus, player, title): return "song_changed"
         
         cur_l_idx = -1
         for i in range(len(synced)-1, -1, -1):
@@ -448,9 +485,14 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=No
                 if minimal:
                     if disp_w: _draw_big_word(stdscr, disp_w, h // 2, curses.color_pair(CP_ACCENT)|curses.A_BOLD)
                     if paused: _draw_pause_overlay(stdscr)
+                    if offset and offset[0] != 0:
+                        off_txt = f"[{offset[0]:+.1f}s]"
+                        _safe_addstr(stdscr, h - 1, _center_x(stdscr, off_txt), off_txt,
+                                     curses.color_pair(CP_PROGRESS) | curses.A_BOLD)
                 else:
                     off_tag = f"  [{offset[0]:+.1f}s]" if offset and offset[0] != 0 else ""
-                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist}  [{player}]{'*' if prec else ''}{' 📀' if track_info.get('cached') else ''}{off_tag}"
+                    status_tags = _player_status_tags(bus)
+                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist}  [{player}]{status_tags}{'*' if prec else ''}{' 📀' if track_info.get('cached') else ''}{off_tag}"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
                     _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
                     if disp_w:
@@ -466,7 +508,7 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=No
                                     _safe_addstr(stdscr, cy, hx, syl[cur_w_idx]["text"], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
                     if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
                     if h > 4:
-                        leg = "q quit  m minimal  p particles  s sync  ←→ offset  0 reset"
+                        leg = "q quit  m minimal  t mode  p parts  s sync  n next  b back  [ ] seek  ←→ offset"
                         _safe_addstr(stdscr, h-1, _center_x(stdscr, leg), leg, curses.color_pair(CP_DIM)|curses.A_DIM)
                     if time.monotonic() - _save_feedback < 1.5:
                         _safe_addstr(stdscr, 0, w - 8, "saved!", curses.color_pair(CP_PROGRESS) | curses.A_BOLD)
@@ -514,7 +556,7 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
         pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
         if now - last_ui > 1.0:
             last_ui = now
-            if _check_song_changed(player, title): return "song_changed"
+            if _check_song_changed(bus, player, title): return "song_changed"
         if not paused:
             if now - last_adv > (wd if words[cur_wi][0] else wd*3): cur_wi += 1; last_adv = now; force = True
             if dur > 0:
@@ -586,7 +628,7 @@ def run_synced(stdscr, synced, track_info, no_sync=None, offset=None):
         pos, paused, now = tracker.get_pos(), tracker.last_status == "Paused", time.monotonic()
         if now - last_ui > 1.0:
             last_ui = now
-            if _check_song_changed(player, title): return "song_changed"
+            if _check_song_changed(bus, player, title): return "song_changed"
         cur_idx = -1
         for i in range(len(synced)-1, -1, -1):
             if pos >= synced[i]["time"]: cur_idx = i; break
@@ -660,7 +702,7 @@ def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None):
         now = time.monotonic()
         if now - last_ui > 1.0:
             last_ui = now
-            if _check_song_changed(player, title): return "song_changed"
+            if _check_song_changed(bus, player, title): return "song_changed"
         idx = int((pos / dur) * len(lines)) if dur > 0 else 0
         idx = max(0, min(len(lines)-1, idx))
         try:
@@ -741,7 +783,7 @@ def run_no_lyrics(stdscr, track_info):
         pos_s = pos_us / 1_000_000
         if now - last_check > 1.5:
             last_check = now
-            if _check_song_changed(player, title): return "song_changed"
+            if _check_song_changed(bus, player, title): return "song_changed"
         try:
             stdscr.erase(); h, w = stdscr.getmaxyx()
             particles.update(h, w); particles.draw(stdscr, intensity="mid")
