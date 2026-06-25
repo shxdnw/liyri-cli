@@ -9,8 +9,11 @@ from difflib import SequenceMatcher
 
 LRCLIB_BASE = "https://lrclib.net"
 NETEASE_BASE = "http://music.163.com/api"
-USER_AGENT = "liyri-cli/1.2.0"
+USER_AGENT = f"liyri-cli/{__import__('liyri').__version__}"
 TIMEOUT = 3
+
+# Configurable from main.py
+ENABLE_KEYWORD_STRIPPING = True
 
 _LYRICS_CACHE = {}
 _CACHE_MAX = 200
@@ -68,9 +71,10 @@ def _fetch_lyrics_internal(title, artist, album=None, duration_s=None):
             pool.submit(_try_exact_match, title, artist, album, duration_s): "exact",
             pool.submit(_try_search, title, artist): "search",
         }
-        clean_title = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip()
-        if clean_title != title:
-            futures[pool.submit(_try_search, clean_title, artist)] = "stripped"
+        if ENABLE_KEYWORD_STRIPPING:
+            clean_title = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip()
+            if clean_title != title and clean_title:
+                futures[pool.submit(_try_search, clean_title, artist)] = "stripped"
 
         for future in as_completed(futures):
             try:
