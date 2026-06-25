@@ -334,7 +334,7 @@ def _draw_progress_bar(win, y, pos, dur, paused=False):
     if hx < w - 7: _safe_addstr(win, y, hx, "⏸" if paused else "●", curses.color_pair(col) | curses.A_BOLD)
     _safe_addstr(win, y, w - 6, _format_time(dur), curses.color_pair(CP_DIM))
 
-def _draw_box_header(win, title, artist, player, paused=False, precision=False, cached=False, bus_name=None):
+def _draw_box_header(win, title, artist, player, paused=False, precision=False, cached=False, bus_name=None, source=""):
     try: h, w = win.getmaxyx()
     except: return 0
     if h < 6 or w < 10: return 0
@@ -348,9 +348,10 @@ def _draw_box_header(win, title, artist, player, paused=False, precision=False, 
     _safe_addstr(win, 2, w - 1, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
     _safe_addstr(win, 3, 0, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
     status_tags = _player_status_tags(bus_name) if bus_name else ""
+    src_tag = f"  [{source}]" if source else ""
     tag = "*" if precision else ""
     if cached: tag += " 📀"
-    _safe_addstr(win, 3, 2, f"▶  [{player}]{status_tags}{tag}", curses.color_pair(CP_DIM))
+    _safe_addstr(win, 3, 2, f"▶  [{player}]{status_tags}{src_tag}{tag}", curses.color_pair(CP_DIM))
     _safe_addstr(win, 3, w - 1, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
     _safe_addstr(win, 4, 0, "╰" + b + "╯", curses.color_pair(CP_HEADER) | curses.A_DIM)
     return 5
@@ -493,7 +494,8 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=No
                 else:
                     off_tag = f"  [{offset[0]:+.1f}s]" if offset and offset[0] != 0 else ""
                     status_tags = _player_status_tags(bus)
-                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist}  [{player}]{status_tags}{'*' if prec else ''}{' 📀' if track_info.get('cached') else ''}{off_tag}"
+                    src_tag = f"  [{track_info.get('source', '')}]" if track_info.get('source') else ""
+                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist}  [{player}]{status_tags}{src_tag}{'*' if prec else ''}{' 📀' if track_info.get('cached') else ''}{off_tag}"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
                     _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
                     if disp_w:
@@ -588,7 +590,8 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
                                      curses.color_pair(CP_PROGRESS) | curses.A_BOLD)
                 else:
                     status_tags = _player_status_tags(bus)
-                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist} [{player}]{status_tags}{' 📀' if track_info.get('cached') else ''}{off_tag}"
+                    src_tag = f"  [{track_info.get('source', '')}]" if track_info.get('source') else ""
+                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist} [{player}]{status_tags}{src_tag}{' 📀' if track_info.get('cached') else ''}{off_tag}"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
                     _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
                     if cw:
@@ -655,7 +658,7 @@ def run_synced(stdscr, synced, track_info, no_sync=None, offset=None, mode=None)
             if h < 6 or w < 10: continue
             particles.update(h, w)
             particles.draw(stdscr)
-            hh = _draw_box_header(stdscr, title, artist, player, paused, precision=prec, cached=track_info.get("cached", False), bus_name=bus)
+            hh = _draw_box_header(stdscr, title, artist, player, paused, precision=prec, cached=track_info.get("cached", False), bus_name=bus, source=track_info.get("source", ""))
             top, bot = hh + 1, h - 3
             if bot - top < 3: stdscr.refresh(); continue
             cy = top + (bot - top) // 2
@@ -729,7 +732,7 @@ def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None, 
         try:
             stdscr.erase(); h, w = stdscr.getmaxyx()
             particles.update(h, w); particles.draw(stdscr)
-            hh = _draw_box_header(stdscr, title, artist, player, paused, cached=track_info.get("cached", False), bus_name=bus)
+            hh = _draw_box_header(stdscr, title, artist, player, paused, cached=track_info.get("cached", False), bus_name=bus, source=track_info.get("source", ""))
             top, bot = hh + 1, h - 3
             cy = top + (bot - top) // 2
             for i, text in enumerate(lines):
