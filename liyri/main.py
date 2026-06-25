@@ -182,6 +182,8 @@ def main():
     display.set_theme(cfg.get("theme", "default"))
     mpris.ENABLE_STICKY_PLAYER = cfg.get("sticky_player", True)
     lyrics_api.ENABLE_KEYWORD_STRIPPING = cfg.get("strip_keywords", True)
+    display.SHOW_PLAYER_STATUS = cfg.get("show_player_status", True)
+    display.SET_TERMINAL_TITLE = cfg.get("set_terminal_title", True)
 
     args.player = args.player if args.player else cfg.get("player", "")
     args.speed = args.speed if args.speed != 1.0 else cfg.get("speed", 1.0)

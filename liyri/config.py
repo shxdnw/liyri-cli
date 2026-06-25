@@ -11,6 +11,8 @@ DEFAULT_CONFIG = {
     "strip_keywords": True,
     "sticky_player": True,
     "theme": "default",
+    "show_player_status": True,
+    "set_terminal_title": True,
 }
 
 _VALIDATORS = {

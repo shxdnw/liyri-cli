@@ -87,6 +87,8 @@ Config is auto-generated on first run at `~/.config/liyri/config.json`:
 | `no_sync` | Always fetch plain lyrics |
 | `strip_keywords` | Strip tags like "(slowed)" or "nightcore" for better lyric matching |
 | `sticky_player` | Remember the last active player on pause instead of jumping to another |
+| `show_player_status` | Show shuffle, repeat, and volume indicators in the header (`true`/`false`) |
+| `set_terminal_title` | Update terminal window title to current track (`true`/`false`) |
 
 ---
 

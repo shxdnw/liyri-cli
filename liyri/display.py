@@ -2,6 +2,7 @@
 
 import os
 import sys
+import re
 import curses
 import time
 import unicodedata
@@ -11,6 +12,8 @@ from pathlib import Path
 from liyri import player as mpris
 
 _THEME = "default"
+SHOW_PLAYER_STATUS = True
+SET_TERMINAL_TITLE = True
 
 THEMES = {
     "default": {
@@ -66,7 +69,12 @@ CP_PAUSE     = 11
 
 def _set_term_title(title, artist):
     """Set terminal window title via OSC escape sequence."""
-    sys.stdout.write(f"\033]0;liyri — {title} — {artist}\007")
+    if not SET_TERMINAL_TITLE:
+        return
+    _strip_ctrl = lambda s: re.sub(r'[\x00-\x1f\x7f-\x9f]', '', s)
+    safe_title = _strip_ctrl(title)
+    safe_artist = _strip_ctrl(artist)
+    sys.stdout.write(f"\033]0;liyri — {safe_title} — {safe_artist}\007")
     sys.stdout.flush()
 
 def _init_colors():
@@ -303,6 +311,8 @@ def _format_time(s):
 
 def _player_status_tags(bus_name):
     """Build compact status tags for shuffle, loop, and volume."""
+    if not SHOW_PLAYER_STATUS:
+        return ""
     tags = ""
     try:
         s = mpris.get_shuffle(bus_name)
