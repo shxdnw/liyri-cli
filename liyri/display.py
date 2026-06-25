@@ -334,7 +334,7 @@ def _draw_progress_bar(win, y, pos, dur, paused=False):
     if hx < w - 7: _safe_addstr(win, y, hx, "⏸" if paused else "●", curses.color_pair(col) | curses.A_BOLD)
     _safe_addstr(win, y, w - 6, _format_time(dur), curses.color_pair(CP_DIM))
 
-def _draw_box_header(win, title, artist, player, paused=False, precision=False, cached=False):
+def _draw_box_header(win, title, artist, player, paused=False, precision=False, cached=False, bus_name=None):
     try: h, w = win.getmaxyx()
     except: return 0
     if h < 6 or w < 10: return 0
@@ -347,9 +347,10 @@ def _draw_box_header(win, title, artist, player, paused=False, precision=False, 
     _safe_addstr(win, 2, 2, f"◈  {artist}", curses.color_pair(CP_ACCENT))
     _safe_addstr(win, 2, w - 1, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
     _safe_addstr(win, 3, 0, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
+    status_tags = _player_status_tags(bus_name) if bus_name else ""
     tag = "*" if precision else ""
     if cached: tag += " 📀"
-    _safe_addstr(win, 3, 2, f"▶  [{player}]{tag}", curses.color_pair(CP_DIM))
+    _safe_addstr(win, 3, 2, f"▶  [{player}]{status_tags}{tag}", curses.color_pair(CP_DIM))
     _safe_addstr(win, 3, w - 1, "│", curses.color_pair(CP_HEADER) | curses.A_DIM)
     _safe_addstr(win, 4, 0, "╰" + b + "╯", curses.color_pair(CP_HEADER) | curses.A_DIM)
     return 5
@@ -608,7 +609,7 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
         time.sleep(0.016)
     return "finished"
 
-def run_synced(stdscr, synced, track_info, no_sync=None, offset=None):
+def run_synced(stdscr, synced, track_info, no_sync=None, offset=None, mode=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
@@ -626,6 +627,11 @@ def run_synced(stdscr, synced, track_info, no_sync=None, offset=None):
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
         if k == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
+        if k == ord("t") and mode is not None: mode[0] = "scroll" if mode[0] == "focus" else "focus"; return "retry"
+        if k == ord("n"): mpris.player_next(bus); return "retry"
+        if k == ord("b"): mpris.player_previous(bus); return "retry"
+        if k == ord("]"): mpris.player_seek(bus, 5000000)
+        if k == ord("["): mpris.player_seek(bus, -5000000)
         if k == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5
         if k == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5
         if k == ord("0") and offset is not None: offset[0] = 0.0
@@ -649,7 +655,7 @@ def run_synced(stdscr, synced, track_info, no_sync=None, offset=None):
             if h < 6 or w < 10: continue
             particles.update(h, w)
             particles.draw(stdscr)
-            hh = _draw_box_header(stdscr, title, artist, player, paused, precision=prec, cached=track_info.get("cached", False))
+            hh = _draw_box_header(stdscr, title, artist, player, paused, precision=prec, cached=track_info.get("cached", False), bus_name=bus)
             top, bot = hh + 1, h - 3
             if bot - top < 3: stdscr.refresh(); continue
             cy = top + (bot - top) // 2
@@ -687,7 +693,7 @@ def run_waiting(stdscr, player_filter):
         _safe_addstr(stdscr, h//2, _center_x(stdscr, m), m, curses.color_pair(CP_DIM))
         stdscr.refresh()
 
-def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None):
+def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None, mode=None):
     curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
     dur = track_info["duration_us"] / 1_000_000
@@ -701,6 +707,11 @@ def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None):
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
         if k == ord("s") and no_sync is not None: no_sync[0] = not no_sync[0]; return "retry"
+        if k == ord("t") and mode is not None: mode[0] = "scroll" if mode[0] == "focus" else "focus"; return "retry"
+        if k == ord("n"): mpris.player_next(bus); return "retry"
+        if k == ord("b"): mpris.player_previous(bus); return "retry"
+        if k == ord("]"): mpris.player_seek(bus, 5000000)
+        if k == ord("["): mpris.player_seek(bus, -5000000)
         if k == curses.KEY_LEFT and offset is not None: offset[0] -= 0.5
         if k == curses.KEY_RIGHT and offset is not None: offset[0] += 0.5
         if k == ord("0") and offset is not None: offset[0] = 0.0
@@ -718,7 +729,7 @@ def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None):
         try:
             stdscr.erase(); h, w = stdscr.getmaxyx()
             particles.update(h, w); particles.draw(stdscr)
-            hh = _draw_box_header(stdscr, title, artist, player, paused, cached=track_info.get("cached", False))
+            hh = _draw_box_header(stdscr, title, artist, player, paused, cached=track_info.get("cached", False), bus_name=bus)
             top, bot = hh + 1, h - 3
             cy = top + (bot - top) // 2
             for i, text in enumerate(lines):
@@ -784,6 +795,10 @@ def run_no_lyrics(stdscr, track_info):
         except: k = -1
         if k in (ord("q"), ord("Q"), 27): return "quit"
         if k == ord("p"): particles.enabled = not particles.enabled
+        if k == ord("n"): mpris.player_next(bus); return "retry"
+        if k == ord("b"): mpris.player_previous(bus); return "retry"
+        if k == ord("]"): mpris.player_seek(bus, 5000000)
+        if k == ord("["): mpris.player_seek(bus, -5000000)
         now = time.monotonic()
         try:
             status = mpris.get_playback_status(bus)
@@ -804,7 +819,7 @@ def run_no_lyrics(stdscr, track_info):
             hint = "waiting for next song..."
             _safe_addstr(stdscr, h // 2 + 2, _center_x(stdscr, hint), hint, curses.color_pair(CP_DIM) | curses.A_DIM)
             _draw_progress_bar(stdscr, h - 2, pos_s, dur)
-            footer = "q quit  p particles  ─  liyri"
+            footer = "q quit  p parts  n next  b back  [ ] seek"
             _safe_addstr(stdscr, h - 1, _center_x(stdscr, footer), footer, curses.color_pair(CP_DIM) | curses.A_DIM)
             stdscr.refresh()
         except: pass
