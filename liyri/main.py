@@ -166,9 +166,16 @@ def main():
         sys.exit(0)
 
     if args.search:
-        parts = args.search.split(" - ", 1)
-        artist = parts[0].strip() if len(parts) == 2 else ""
-        title = parts[1].strip() if len(parts) == 2 else args.search.strip()
+        query = args.search
+        for sep in [" — ", " – ", " - ", " / "]:
+            if sep in query:
+                parts = query.split(sep, 1)
+                artist = parts[0].strip()
+                title = parts[1].strip()
+                break
+        else:
+            artist = ""
+            title = query.strip()
         curses.wrapper(lambda stdscr: _run_search(stdscr, title, artist))
         sys.exit(0)
 
