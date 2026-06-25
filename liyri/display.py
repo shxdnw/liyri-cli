@@ -1,6 +1,7 @@
 """Curses-based animated lyrics display."""
 
 import os
+import sys
 import curses
 import time
 import unicodedata
@@ -62,6 +63,11 @@ CP_WORD_GLOW = 8
 CP_INSTRUMENTAL = 9
 CP_BIG_WORD  = 10
 CP_PAUSE     = 11
+
+def _set_term_title(title, artist):
+    """Set terminal window title via OSC escape sequence."""
+    sys.stdout.write(f"\033]0;liyri — {title} — {artist}\007")
+    sys.stdout.flush()
 
 def _init_colors():
     curses.start_color()
@@ -424,6 +430,7 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=No
     stdscr.timeout(10)
     _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    _set_term_title(title, artist)
     dur, prec = track_info["duration_us"] / 1_000_000, track_info.get("high_precision", False)
     tracker = PlayerTracker(bus, offset=offset)
     tracker.sync(force=True)
@@ -526,6 +533,7 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
     stdscr.timeout(10)
     _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    _set_term_title(title, artist)
     dur = track_info["duration_us"] / 1_000_000
     words = []
     for l in plain:
@@ -618,6 +626,7 @@ def run_synced(stdscr, synced, track_info, no_sync=None, offset=None, mode=None)
     stdscr.timeout(10)
     _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    _set_term_title(title, artist)
     dur, prec = track_info["duration_us"] / 1_000_000, track_info.get("high_precision", False)
     tracker = PlayerTracker(bus, offset=offset)
     tracker.sync(force=True)
@@ -699,6 +708,7 @@ def run_waiting(stdscr, player_filter):
 def run_static(stdscr, lines, track_info, speed=1.0, no_sync=None, offset=None, mode=None):
     curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    _set_term_title(title, artist)
     dur = track_info["duration_us"] / 1_000_000
     tracker = PlayerTracker(bus, offset=offset); tracker.sync(force=True)
     last_ui = time.monotonic()
@@ -789,6 +799,7 @@ def run_search_viewer(stdscr, result, title, artist):
 def run_no_lyrics(stdscr, track_info):
     curses.curs_set(0); stdscr.nodelay(True); stdscr.timeout(100); _init_colors()
     bus, title, artist, player = track_info["bus_name"], track_info["title"], track_info["artist"], track_info["player"]
+    _set_term_title(title, artist)
     dur = track_info["duration_us"] / 1_000_000
     last_check = time.monotonic()
     h_n, w_n = stdscr.getmaxyx()
