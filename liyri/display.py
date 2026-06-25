@@ -517,7 +517,7 @@ def run_focus(stdscr, synced, track_info, minimal=False, no_sync=None, offset=No
         last_line_idx, last_word_idx = cur_l_idx, cur_w_idx
         time.sleep(0.016)
 
-def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync=None, offset=None):
+def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync=None, offset=None, mode=None):
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(10)
@@ -550,6 +550,11 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
         if k == ord("0") and offset is not None: offset[0] = 0.0; force = True
         if k in (ord("\n"), curses.KEY_ENTER) and words and cur_wi < len(words):
             _save_lyric_line(title, artist, words[cur_wi][1]); force = True
+        if k == ord("t") and mode is not None: mode[0] = "scroll" if mode[0] == "focus" else "focus"; return "retry"
+        if k == ord("n"): mpris.player_next(bus); return "retry"
+        if k == ord("b"): mpris.player_previous(bus); return "retry"
+        if k == ord("]"): mpris.player_seek(bus, 5000000); force = True
+        if k == ord("["): mpris.player_seek(bus, -5000000); force = True
         if k == curses.KEY_RESIZE: force = True; stdscr.clear()
         tracker.sync()
         if tracker.last_status == "Stopped": return "stopped"
@@ -576,8 +581,13 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
                 if minimal:
                     if cw: _draw_big_word(stdscr, cw, h//2)
                     if paused: _draw_pause_overlay(stdscr)
+                    if offset and offset[0] != 0:
+                        off_txt = f"[{offset[0]:+.1f}s]"
+                        _safe_addstr(stdscr, h - 1, _center_x(stdscr, off_txt), off_txt,
+                                     curses.color_pair(CP_PROGRESS) | curses.A_BOLD)
                 else:
-                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist} [{player}]{' 📀' if track_info.get('cached') else ''}{off_tag}"
+                    status_tags = _player_status_tags(bus)
+                    info = f"{'⏸' if paused else '♫'} {title}  ─  {artist} [{player}]{status_tags}{' 📀' if track_info.get('cached') else ''}{off_tag}"
                     _safe_addstr(stdscr, 0, _center_x(stdscr, info), info, curses.color_pair(CP_HEADER))
                     _safe_addstr(stdscr, 1, 1, "─"*(w-2), curses.color_pair(CP_DIM)|curses.A_DIM)
                     if cw:
@@ -590,7 +600,7 @@ def run_focus_plain(stdscr, plain, track_info, speed=1.0, minimal=False, no_sync
                                 b = " ".join(ws[:wil])
                                 _safe_addstr(stdscr, cy, cx + len(b) + (1 if b else 0), ws[wil], curses.color_pair(CP_CURRENT)|curses.A_BOLD)
                     if h > 6: _draw_progress_bar(stdscr, h-2, pos, dur, paused)
-                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  p particles  s sync  ←→ offset  enter save"), "q quit  m minimal  p particles  s sync  ←→ offset  enter save", curses.color_pair(CP_DIM)|curses.A_DIM)
+                    if h > 4: _safe_addstr(stdscr, h-1, _center_x(stdscr, "q quit  m minimal  t mode  p parts  s sync  n next  b back  [ ] seek  ←→ offset"), "q quit  m minimal  t mode  p parts  s sync  n next  b back  [ ] seek  ←→ offset", curses.color_pair(CP_DIM)|curses.A_DIM)
                     if time.monotonic() - _save_feedback < 1.5:
                         _safe_addstr(stdscr, 0, w - 8, "saved!", curses.color_pair(CP_PROGRESS) | curses.A_BOLD)
                 stdscr.refresh()
